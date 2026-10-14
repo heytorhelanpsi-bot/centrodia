@@ -1,6 +1,7 @@
 {
   "name": "psidia",
   "private": true,
+  "type": "module",
   "scripts": {
     "install:all": "npm --prefix server ci --include=dev && npm --prefix client ci --include=dev",
     "build": "npm --prefix client run build && npm --prefix server run build",

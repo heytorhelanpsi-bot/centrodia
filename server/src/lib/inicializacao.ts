@@ -14,6 +14,7 @@ export async function inicializar() {
     if (!config.migrationDatabaseUrl) throw new Error('MIGRAR_AO_INICIAR exige MIGRATION_DATABASE_URL');
     await migrate();
   }
+  await verificarPapelSeguro();
   const email = process.env.ADMIN_EMAIL?.trim();
   const senha = process.env.ADMIN_SENHA_INICIAL;
   if (!email || !senha) return;
@@ -31,4 +32,21 @@ export async function inicializar() {
   await pool.query(`INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id) VALUES ($1, 'admin_inicial_criado', 'usuario', $2)`,
     [r.rows[0].id, r.rows[0].id]);
   console.log(`Administrador inicial criado: ${email} (troca de senha obrigatória no primeiro acesso).`);
+}
+
+/**
+ * Recusa iniciar se a aplicação estiver conectada com um papel que ignora a segurança em nível de
+ * linha (superusuário, BYPASSRLS ou dono das tabelas) — ex.: DATABASE_URL do proprietário por engano.
+ */
+export async function verificarPapelSeguro() {
+  const r = await pool.query(
+    `SELECT current_user AS papel, r.rolsuper, r.rolbypassrls,
+            (SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'assistidos') AS dono
+       FROM pg_roles r WHERE r.rolname = current_user`);
+  const x = r.rows[0];
+  if (!x.dono) throw new Error('Banco sem as tabelas do PsiDia. Configure MIGRATION_DATABASE_URL (ou DATABASE_URL_UNPOOLED) e MIGRAR_AO_INICIAR=true.');
+  if (x.rolsuper || x.rolbypassrls || x.dono === x.papel) {
+    throw new Error(`Configuração insegura: a aplicação está conectada como "${x.papel}", que ignora as regras de acesso (RLS). ` +
+      'Defina APP_DB_PASSWORD (o papel psidia_app é criado automaticamente) ou APP_DATABASE_URL com um papel sem privilégios.');
+  }
 }

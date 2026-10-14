@@ -71,7 +71,7 @@ npm --prefix server run dev
 npm --prefix client run dev
 ```
 
-**Deploy gratuito (Render + Neon, sem custos):** veja [docs/DEPLOY-GRATUITO.md](docs/DEPLOY-GRATUITO.md).
+**Deploy gratuito:** na **Vercel + Neon** ([docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)) ou no **Render + Neon** ([docs/DEPLOY-GRATUITO.md](docs/DEPLOY-GRATUITO.md)).
 O app pode ser instalado em celulares e tablets (PWA, com ícone na tela inicial).
 
 Para produção, use `npm run build && npm start` (a API também serve a interface compilada) ou o `Dockerfile`.

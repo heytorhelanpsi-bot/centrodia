@@ -17,7 +17,7 @@ const limiteLogin = rateLimit({
 });
 
 const MAX_FALHAS = 5;
-const HASH_FICTICIO = bcrypt.hashSync('senha-ficticia-para-tempo-constante', 12);
+let hashFicticio: string | null = null; // gerado sob demanda (evita custo na inicialização)
 const BLOQUEIO_MIN = 15;
 
 async function registrarAuditoria(usuarioId: string | null, acao: string, ip: string | undefined, detalhes = {}) {
@@ -33,7 +33,8 @@ authRouter.post('/login', limiteLogin, async (req, res) => {
   const u = r.rows[0];
   const falha = new HttpError(401, 'E-mail ou senha incorretos.');
   if (!u || !u.ativo) {
-    await conferirSenha(senha, HASH_FICTICIO); // tempo de resposta semelhante
+    hashFicticio ??= bcrypt.hashSync('senha-ficticia-para-tempo-constante', 12);
+    await conferirSenha(senha, hashFicticio); // tempo de resposta semelhante
     await registrarAuditoria(null, 'login_falhou', req.ip, { email });
     throw falha;
   }

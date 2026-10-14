@@ -4,7 +4,7 @@ import { config } from '../config.js';
 // Datas (tipo DATE) retornam como texto 'AAAA-MM-DD' para evitar deslocamentos de fuso.
 pg.types.setTypeParser(1082, (v) => v);
 
-export const pool = new pg.Pool({ connectionString: config.databaseUrl, max: 10 });
+export const pool = new pg.Pool({ connectionString: config.databaseUrl, max: config.poolMax });
 
 export type Db = pg.PoolClient;
 
