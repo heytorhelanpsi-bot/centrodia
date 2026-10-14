@@ -22,7 +22,7 @@ export function Assistidos() {
       </div>
       <div className="cartao">
         <div className="linha-campos">
-          <Campo rotulo="Pesquisar por nome ou código">{(p) => <input {...p} type="search" value={f.busca} onChange={(e) => setF({ ...f, busca: e.target.value })} placeholder="Ex.: Maria ou RB-00012" />}</Campo>
+          <Campo rotulo="Pesquisar por nome ou código">{(p) => <input {...p} type="search" value={f.busca} onChange={(e) => setF({ ...f, busca: e.target.value })} placeholder="Ex.: Maria ou PD-00012" />}</Campo>
           <Campo rotulo="Turno">{(p) => (
             <select {...p} value={f.turno} onChange={(e) => setF({ ...f, turno: e.target.value })}>
               <option value="">Todos</option><option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="ambos">Ambos os turnos</option>

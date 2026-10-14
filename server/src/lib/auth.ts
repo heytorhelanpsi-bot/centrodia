@@ -4,7 +4,7 @@ import { pool, withTx } from '../db/pool.js';
 import { config } from '../config.js';
 import { HttpError, sha256, tokenAleatorio } from './util.js';
 
-export const COOKIE_SESSAO = 'rb_sessao';
+export const COOKIE_SESSAO = 'ps_sessao';
 const INATIVIDADE_MIN = 30;
 const DURACAO_MAX_H = 12;
 

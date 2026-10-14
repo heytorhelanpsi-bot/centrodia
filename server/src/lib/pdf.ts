@@ -4,7 +4,7 @@ import PDFDocument from 'pdfkit';
 export function gerarPDF(markdown: string, opts: { rodape: string }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'A4', margins: { top: 56, bottom: 64, left: 56, right: 56 }, bufferPages: true,
-      info: { Title: 'Relatório', Producer: 'Reabilita+' } });
+      info: { Title: 'Relatório', Producer: 'PsiDia' } });
     const partes: Buffer[] = [];
     doc.on('data', (c) => partes.push(c));
     doc.on('end', () => resolve(Buffer.concat(partes)));

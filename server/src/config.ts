@@ -16,7 +16,7 @@ export const config = {
   databaseUrl: req('DATABASE_URL'),
   // Conexão do papel proprietário — usada somente para migrações.
   migrationDatabaseUrl: process.env.MIGRATION_DATABASE_URL ?? '',
-  appDbRole: process.env.APP_DB_ROLE ?? 'reabilita_app',
+  appDbRole: process.env.APP_DB_ROLE ?? 'psidia_app',
   // Chave de 32 bytes (base64) para cifrar observações restritas.
   dataEncryptionKey: req('DATA_ENCRYPTION_KEY', env === 'production' ? undefined : 'ZGV2LW9ubHkta2V5LWRvLW5vdC11c2UtaW4tcHJvZCE='),
   // Provedor de IA: 'anthropic' | 'gemini' | vazio (detecta pela chave configurada).

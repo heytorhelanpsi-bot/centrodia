@@ -43,7 +43,7 @@ export function criarApp() {
   api.use((req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     // Proteção CSRF complementar ao cookie SameSite=Strict: exige cabeçalho personalizado em operações de escrita.
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.get('x-requested-with') !== 'reabilita') {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && req.get('x-requested-with') !== 'psidia') {
       throw new HttpError(403, 'Requisição recusada (cabeçalho de segurança ausente).');
     }
     next();

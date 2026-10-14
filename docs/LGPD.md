@@ -1,6 +1,6 @@
 # Privacidade e LGPD — o que o sistema faz e o que a instituição precisa decidir
 
-O Reabilita+ trata **dados pessoais sensíveis** (saúde, deficiência, diagnósticos e comportamento)
+O PsiDia trata **dados pessoais sensíveis** (saúde, deficiência, diagnósticos e comportamento)
 de pessoas que podem ser crianças, adolescentes ou adultos em situação de vulnerabilidade. Este
 documento descreve as salvaguardas técnicas implementadas e as decisões que cabem à instituição,
 com orientação jurídica. **Ele não substitui um parecer jurídico.**

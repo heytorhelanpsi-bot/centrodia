@@ -26,10 +26,10 @@ describe('autenticação e sessão', () => {
   it('recusa credenciais inválidas e bloqueia após tentativas repetidas', async () => {
     const u = await criarUsuario('profissional');
     for (let i = 0; i < 5; i++) {
-      const r = await request(app).post('/api/auth/login').set('X-Requested-With', 'reabilita').send({ email: u.email, senha: 'errada' });
+      const r = await request(app).post('/api/auth/login').set('X-Requested-With', 'psidia').send({ email: u.email, senha: 'errada' });
       expect(r.status).toBe(401);
     }
-    const r = await request(app).post('/api/auth/login').set('X-Requested-With', 'reabilita').send({ email: u.email, senha: 'SenhaForte123' });
+    const r = await request(app).post('/api/auth/login').set('X-Requested-With', 'psidia').send({ email: u.email, senha: 'SenhaForte123' });
     expect(r.status).toBe(423);
   });
 
@@ -70,7 +70,7 @@ describe('cadastro de assistidos', () => {
     const dados = novoAssistido({ nome_completo: 'Maria Duplicada Souza', observacoes_restritas: 'Usa aparelho auditivo' });
     const r = await prof.post('/api/assistidos', dados);
     expect(r.status).toBe(201);
-    expect(r.body.codigo).toMatch(/^RB-\d{5}$/);
+    expect(r.body.codigo).toMatch(/^PD-\d{5}$/);
     const det = await prof.get(`/api/assistidos/${r.body.id}`);
     expect(det.body.idade).toBeGreaterThan(10);
     expect(det.body.observacoes_restritas).toBe('Usa aparelho auditivo');

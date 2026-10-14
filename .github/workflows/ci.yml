@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://psidia_app:app_ci@localhost:5432/psidia_test
+      TEST_MIGRATION_DATABASE_URL: postgres://psidia_owner:owner_ci@localhost:5432/psidia_test
+      APP_DB_ROLE: psidia_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Papéis e banco de teste
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c "CREATE ROLE psidia_owner LOGIN PASSWORD 'owner_ci'"
+          psql -h localhost -U postgres -c "CREATE ROLE psidia_app LOGIN PASSWORD 'app_ci'"
+          psql -h localhost -U postgres -c "CREATE DATABASE psidia_test OWNER psidia_owner"
+      - run: npm run install:all
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

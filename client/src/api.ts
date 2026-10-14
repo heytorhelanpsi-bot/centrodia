@@ -13,7 +13,7 @@ async function req<T>(metodo: string, url: string, corpo?: unknown): Promise<T> 
     r = await fetch(`/api${url}`, {
       method: metodo,
       credentials: 'same-origin',
-      headers: { 'X-Requested-With': 'reabilita', ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { 'X-Requested-With': 'psidia', ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
       body: corpo !== undefined ? JSON.stringify(corpo) : undefined,
     });
   } catch {

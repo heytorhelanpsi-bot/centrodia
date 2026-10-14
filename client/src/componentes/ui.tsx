@@ -214,7 +214,7 @@ export function BuscaAssistido({ valor, onSelecionar, rotulo = 'Assistido', erro
   return (
     <div className="campo">
       <label htmlFor={id}>{rotulo} <span aria-hidden style={{ color: 'var(--vermelho-700)' }}>*</span></label>
-      <input id={id} type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Digite nome ou código (ex.: RB-00012)"
+      <input id={id} type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Digite nome ou código (ex.: PD-00012)"
         aria-invalid={erro ? true : undefined} autoComplete="off" aria-describedby={`${id}-r`} />
       <div id={`${id}-r`} aria-live="polite">
         {carregando && <span className="mudo">Buscando…</span>}

@@ -48,11 +48,11 @@ function Layout() {
       <a href="#conteudo" className="pular-link">Pular para o conteúdo</a>
       <div className="topo-movel">
         <button aria-label="Abrir menu" aria-expanded={aberto} onClick={() => setAberto(true)}>☰</button>
-        <strong>Reabilita+</strong>
+        <strong style={{ display: 'flex', alignItems: 'center', gap: 8 }}><img src="/icone.svg" alt="" width={28} height={28} />PsiDia</strong>
         <span style={{ width: 44 }} />
       </div>
       <nav className={`lateral ${aberto ? 'aberta' : ''}`} aria-label="Menu principal" onKeyDown={(e) => e.key === 'Escape' && setAberto(false)}>
-        <div className="marca"><span className="marca-icone" aria-hidden>+</span><span>Reabilita+<small>Gestão e evolução dos assistidos</small></span></div>
+        <div className="marca"><img className="marca-icone" src="/icone.svg" alt="" aria-hidden /><span>PsiDia<small>Gestão e evolução dos assistidos</small></span></div>
         <ul className="menu">
           {itens.map((m) => (
             <li key={m.to}><NavLink to={m.to} end={m.fim} className={({ isActive }) => (isActive ? 'ativo' : '')}>

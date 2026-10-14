@@ -1,4 +1,4 @@
--- Reabilita+ — estrutura inicial do banco de dados
+-- PsiDia — estrutura inicial do banco de dados
 -- Executada pelo papel proprietário (dono das tabelas). A aplicação conecta com
 -- um papel separado (APP_DB_ROLE) sujeito às políticas de RLS definidas abaixo.
 

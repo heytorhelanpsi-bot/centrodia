@@ -19,8 +19,8 @@ export function Login({ expirou }: { expirou?: boolean }) {
     <div className="login-pagina">
       <main className="login-cartao">
         <div className="marca" style={{ color: 'var(--azul-900)', padding: '0 0 16px' }}>
-          <span className="marca-icone" aria-hidden>+</span>
-          <span>Reabilita+<small style={{ color: 'var(--cinza-500)' }}>Gestão e evolução dos assistidos</small></span>
+          <img className="marca-icone" src="/icone.svg" alt="" aria-hidden />
+          <span>PsiDia<small style={{ color: 'var(--cinza-500)' }}>Gestão e evolução dos assistidos</small></span>
         </div>
         <h1 style={{ fontSize: '1.3rem' }}>Entrar</h1>
         {expirou && <div className="aviso atencao" role="status">Sua sessão foi encerrada por inatividade. Entre novamente.</div>}

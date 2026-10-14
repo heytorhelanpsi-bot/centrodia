@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f5f99"/>
+      <stop offset="1" stop-color="#1e7a52"/>
+    </linearGradient>
+    <clipPath id="horizonte"><rect x="0" y="0" width="512" height="366"/></clipPath>
+  </defs>
+  <rect width="512" height="512" fill="url(#fundo)"/>
+  <g transform="translate(256 256) scale(0.78) translate(-256 -270)">
+    <circle cx="256" cy="392" r="104" fill="#ffd27a" clip-path="url(#horizonte)" transform="translate(0 0)"/>
+    <path d="M112 392 H400" stroke="#ffffff" stroke-opacity="0.55" stroke-width="14" stroke-linecap="round"/>
+    <g fill="none" stroke="#ffffff" stroke-width="38" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M150 128 V196 A106 106 0 0 0 362 196 V128"/>
+      <path d="M256 96 V352"/>
+    </g>
+  </g>
+</svg>

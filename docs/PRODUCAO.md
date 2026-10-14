@@ -1,4 +1,4 @@
-# Colocando o Reabilita+ em produção
+# Colocando o PsiDia em produção
 
 ## 1. Componentes necessários
 
@@ -16,10 +16,10 @@ ser adicionada depois, se desejado.
 ## 2. Banco de dados
 
 1. Crie dois papéis:
-   - `reabilita_owner`: dono do banco; usado **somente** para migrações.
-   - `reabilita_app`: usado pela aplicação; **não** pode ser dono das tabelas (é isso que faz a RLS valer).
-2. `CREATE DATABASE reabilita OWNER reabilita_owner;`
-3. Rode as migrações: `MIGRATION_DATABASE_URL=... APP_DB_ROLE=reabilita_app npm --prefix server run migrate:prod`
+   - `psidia_owner`: dono do banco; usado **somente** para migrações.
+   - `psidia_app`: usado pela aplicação; **não** pode ser dono das tabelas (é isso que faz a RLS valer).
+2. `CREATE DATABASE psidia OWNER psidia_owner;`
+3. Rode as migrações: `MIGRATION_DATABASE_URL=... APP_DB_ROLE=psidia_app npm --prefix server run migrate:prod`
    (ou `npm run migrate` em desenvolvimento). As migrações concedem ao papel da aplicação apenas
    os privilégios necessários: não há `DELETE` em tabelas clínicas, e a auditoria só aceita inserção.
 4. Exija TLS na conexão (`?sslmode=require` na URL) e cifragem em repouso (padrão nos serviços gerenciados).
@@ -36,9 +36,9 @@ ser adicionada depois, se desejado.
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `NODE_ENV` | sim | `production` |
-| `DATABASE_URL` | sim | conexão do papel `reabilita_app` |
-| `MIGRATION_DATABASE_URL` | p/ migrar | conexão do papel `reabilita_owner` |
-| `APP_DB_ROLE` | sim | nome do papel da aplicação (padrão `reabilita_app`) |
+| `DATABASE_URL` | sim | conexão do papel `psidia_app` |
+| `MIGRATION_DATABASE_URL` | p/ migrar | conexão do papel `psidia_owner` |
+| `APP_DB_ROLE` | sim | nome do papel da aplicação (padrão `psidia_app`) |
 | `DATA_ENCRYPTION_KEY` | sim | 32 bytes em base64: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
 | `PUBLIC_URL` | sim | URL pública (usada nos links de redefinição de senha) |
 | `COOKIE_SECURE` | sim | `true` (exige HTTPS) |
@@ -58,12 +58,12 @@ A chave da API nunca é enviada ao navegador. Todas as chamadas à IA saem do ba
 ## 4. Implantação com Docker
 
 ```bash
-docker build -t reabilita .
-docker run -d --env-file server/.env -p 3000:3000 reabilita
+docker build -t psidia .
+docker run -d --env-file server/.env -p 3000:3000 psidia
 # Migrações (uma vez por versão):
-docker run --rm --env-file server/.env reabilita node server/dist/db/migrate.js
+docker run --rm --env-file server/.env psidia node server/dist/db/migrate.js
 # Primeiro administrador:
-docker run --rm -it --env-file server/.env reabilita node server/dist/scripts/create-admin.js "Nome" email@instituicao.org
+docker run --rm -it --env-file server/.env psidia node server/dist/scripts/create-admin.js "Nome" email@instituicao.org
 ```
 
 Coloque um proxy HTTPS (Caddy, Nginx ou o do provedor) à frente da porta 3000.

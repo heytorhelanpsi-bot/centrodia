@@ -1,4 +1,4 @@
-# Imagem de produção do Reabilita+ (API + frontend compilado).
+# Imagem de produção do PsiDia (API + frontend compilado).
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY server/package*.json server/

@@ -1,8 +1,8 @@
 {
-  "name": "reabilita-mais",
+  "name": "psidia",
   "private": true,
   "scripts": {
-    "install:all": "npm --prefix server ci && npm --prefix client ci",
+    "install:all": "npm --prefix server ci --include=dev && npm --prefix client ci --include=dev",
     "build": "npm --prefix client run build && npm --prefix server run build",
     "start": "npm --prefix server start",
     "migrate": "npm --prefix server run migrate",

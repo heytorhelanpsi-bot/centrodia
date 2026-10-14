@@ -43,7 +43,7 @@ dashboardRouter.get('/', exigir('assistidos.ver'), async (req, res) => {
               coalesce((SELECT array_agg(t.nome ORDER BY t.nome) FROM evolucao_atividades ea JOIN atividades t ON t.id = ea.atividade_id WHERE ea.evolucao_id = e.id), '{}') AS atividades
          FROM evolucoes e JOIN assistidos a ON a.id = e.assistido_id JOIN usuarios u ON u.id = e.profissional_id
         WHERE e.status = 'finalizada' AND ($2::turno IS NULL OR e.turno = $2) AND ($3::uuid IS NULL OR e.profissional_id = $3) AND e.data <= $1
-        ORDER BY e.finalizada_em DESC LIMIT 8`, p);
+        ORDER BY e.data DESC, e.finalizada_em DESC LIMIT 8`, p);
     const rascunhos = await db.query(
       `SELECT e.id, e.data, e.turno, a.nome_completo AS assistido_nome, a.codigo AS assistido_codigo, e.atividade_coletiva_id, e.atualizado_em
          FROM evolucoes e JOIN assistidos a ON a.id = e.assistido_id

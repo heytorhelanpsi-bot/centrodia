@@ -1,4 +1,6 @@
-# Reabilita+ — Gestão e Evolução dos Assistidos
+# PsiDia — Gestão e Evolução dos Assistidos
+
+<img src="client/public/icone-192.png" alt="Ícone do PsiDia" width="96" />
 
 Aplicativo web responsivo para centros de reabilitação: cadastro de assistidos, registro de
 evoluções individuais e em grupo, indicadores comportamentais de 0 a 5 com escalas versionadas,
@@ -12,7 +14,7 @@ com IA, com revisão humana obrigatória.
 | Módulo | O que faz |
 |---|---|
 | **Dashboard** | Assistidos ativos, previstos do dia (pela agenda), registrados e pendentes, individuais × grupo, distribuição por turno, evoluções recentes e alertas de rascunhos. Filtros por data, turno e profissional. Não mostra dados clínicos. |
-| **Assistidos** | Cadastro com código interno automático (RB-00001), idade calculada, vários diagnósticos/CID (busca no catálogo ou inserção manual autorizada, com a situação documental de cada um), dias e turno, observações restritas **cifradas**. Busca, filtros, arquivamento sem perda de histórico e bloqueio de duplicidade (nome normalizado + data de nascimento). |
+| **Assistidos** | Cadastro com código interno automático (PD-00001), idade calculada, vários diagnósticos/CID (busca no catálogo ou inserção manual autorizada, com a situação documental de cada um), dias e turno, observações restritas **cifradas**. Busca, filtros, arquivamento sem perda de histórico e bloqueio de duplicidade (nome normalizado + data de nascimento). |
 | **Registrar evolução** | Formulário em seções: identificação, checklist de atividades (com “Adicionar nova atividade”), indicadores 0–5 com “Não avaliado” separado do 0, descrição de cada nível e observação por indicador, evolução e campos complementares. Botões: salvar rascunho, salvar, salvar e registrar a próxima, salvar e gerar análise com IA, cancelar. |
 | **Correções** | Registros finalizados não podem ser alterados sem registro. Correções exigem motivo e guardam as versões anterior e nova (com responsável e data). Isso é garantido **no banco de dados**. |
 | **Atendimentos em grupo** | O evento é registrado uma vez, com seleção múltipla de participantes (previstos do dia/turno, filtros e busca) e ausentes. Cada participante tem seu próprio registro, com participação, apoio, indicadores e evolução. A “avaliação comum” exige revisão individual, e evoluções idênticas são recusadas. Cada pessoa recebe uma evolução vinculada ao evento. |
@@ -49,9 +51,9 @@ Pré-requisitos: Node 22+ e PostgreSQL 14+.
 
 ```bash
 # 1. Banco e papéis (exemplo; use senhas fortes)
-psql -U postgres -c "CREATE ROLE reabilita_owner LOGIN PASSWORD '...'"
-psql -U postgres -c "CREATE ROLE reabilita_app LOGIN PASSWORD '...'"
-psql -U postgres -c "CREATE DATABASE reabilita OWNER reabilita_owner"
+psql -U postgres -c "CREATE ROLE psidia_owner LOGIN PASSWORD '...'"
+psql -U postgres -c "CREATE ROLE psidia_app LOGIN PASSWORD '...'"
+psql -U postgres -c "CREATE DATABASE psidia OWNER psidia_owner"
 
 # 2. Configuração
 cp server/.env.example server/.env    # preencha as URLs e a DATA_ENCRYPTION_KEY
@@ -69,6 +71,9 @@ npm --prefix server run dev
 npm --prefix client run dev
 ```
 
+**Deploy gratuito (Render + Neon, sem custos):** veja [docs/DEPLOY-GRATUITO.md](docs/DEPLOY-GRATUITO.md).
+O app pode ser instalado em celulares e tablets (PWA, com ícone na tela inicial).
+
 Para produção, use `npm run build && npm start` (a API também serve a interface compilada) ou o `Dockerfile`.
 Veja [docs/PRODUCAO.md](docs/PRODUCAO.md).
 
@@ -79,7 +84,7 @@ npm test             # 45 testes (unidade + fluxos completos) contra um banco Po
 npm run typecheck
 ```
 
-Os testes recriam o banco `reabilita_test` (configure `TEST_DATABASE_URL` e
+Os testes recriam o banco `psidia_test` (configure `TEST_DATABASE_URL` e
 `TEST_MIGRATION_DATABASE_URL` se necessário) e cobrem: cálculo de idade, autenticação, bloqueio
 por tentativas, troca obrigatória de senha, CSRF, cadastro e duplicidade, CID, arquivamento,
 RLS (inclusive com acesso direto ao banco, contornando a API), evolução (rascunho, validação,

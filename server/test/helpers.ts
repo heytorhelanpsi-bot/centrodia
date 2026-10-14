@@ -21,9 +21,9 @@ export async function criarUsuario(perfil: 'admin' | 'profissional' | 'consulta'
 /** Agente HTTP autenticado (mantém cookie de sessão e envia o cabeçalho anti-CSRF). */
 export async function entrar(email: string, senha = SENHA) {
   const agent = request.agent(app);
-  const r = await agent.post('/api/auth/login').set('X-Requested-With', 'reabilita').send({ email, senha });
+  const r = await agent.post('/api/auth/login').set('X-Requested-With', 'psidia').send({ email, senha });
   if (r.status !== 200) throw new Error(`login falhou: ${r.status} ${JSON.stringify(r.body)}`);
-  const h = { 'X-Requested-With': 'reabilita' };
+  const h = { 'X-Requested-With': 'psidia' };
   return {
     get: (u: string) => agent.get(u),
     post: (u: string, b?: object) => agent.post(u).set(h).send(b ?? {}),
