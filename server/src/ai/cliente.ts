@@ -1,20 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config.js';
 import { HttpError } from '../lib/util.js';
-
-let cliente: Anthropic | null = null;
-
-export function iaConfigurada(): boolean {
-  return config.aiEnabled && !!process.env.ANTHROPIC_API_KEY;
-}
-
-function obterCliente(): Anthropic {
-  if (!iaConfigurada()) {
-    throw new HttpError(503, 'A integração com IA não está configurada neste servidor. Consulte a administração (variável ANTHROPIC_API_KEY).');
-  }
-  cliente ??= new Anthropic({ timeout: 5 * 60_000, maxRetries: 2 });
-  return cliente;
-}
+import { chamarAnthropic } from './provedor-anthropic.js';
+import { chamarGemini } from './provedor-gemini.js';
 
 export interface RespostaIA {
   texto: string;
@@ -23,53 +10,49 @@ export interface RespostaIA {
   tokensSaida: number;
 }
 
-/** Ponto único de chamada à IA (facilita testes e substituição de provedor). */
-export type ChamadorIA = (args: {
+export interface PedidoIA {
   system: string;
   prompt: string;
   esquemaJSON?: Record<string, unknown>;
   esforco?: 'low' | 'medium' | 'high';
-}) => Promise<RespostaIA>;
+}
 
-const chamadorPadrao: ChamadorIA = async ({ system, prompt, esquemaJSON, esforco = 'medium' }) => {
-  const client = obterCliente();
-  try {
-    const msg = await client.beta.messages.stream({
-      model: config.anthropicModel,
-      max_tokens: 32000,
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-      system,
-      output_config: {
-        effort: esforco,
-        ...(esquemaJSON ? { format: { type: 'json_schema' as const, schema: esquemaJSON } } : {}),
-      },
-      messages: [{ role: 'user', content: prompt }],
-    }).finalMessage();
+/** Ponto único de chamada à IA (facilita testes e substituição de provedor). */
+export type ChamadorIA = (args: PedidoIA) => Promise<RespostaIA>;
 
-    if (msg.stop_reason === 'refusal') {
-      throw new HttpError(422, 'O serviço de IA recusou a solicitação. Revise o conteúdo ou elabore o texto manualmente.');
-    }
-    if (msg.stop_reason === 'max_tokens') {
-      throw new HttpError(422, 'A resposta da IA ficou incompleta (limite de tamanho). Reduza o período ou os registros selecionados.');
-    }
-    const texto = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('\n').trim();
-    if (!texto) throw new HttpError(502, 'A IA não retornou conteúdo. Tente novamente.');
-    return { texto, modelo: msg.model, tokensEntrada: msg.usage.input_tokens, tokensSaida: msg.usage.output_tokens };
-  } catch (e) {
-    if (e instanceof HttpError) throw e;
-    if (e instanceof Anthropic.RateLimitError) throw new HttpError(429, 'Limite de uso do serviço de IA atingido. Aguarde alguns minutos.');
-    if (e instanceof Anthropic.AuthenticationError) throw new HttpError(503, 'Credencial do serviço de IA inválida. Avise a administração.');
-    if (e instanceof Anthropic.APIConnectionError) throw new HttpError(503, 'Não foi possível conectar ao serviço de IA. Tente novamente.');
-    if (e instanceof Anthropic.APIError) throw new HttpError(502, `Falha no serviço de IA (${e.status ?? 'erro'}). Tente novamente.`);
-    throw e;
-  }
+export type Provedor = 'anthropic' | 'gemini';
+
+/**
+ * Provedor escolhido por AI_PROVIDER ('anthropic' | 'gemini').
+ * Sem AI_PROVIDER: usa o provedor cuja chave estiver configurada (Anthropic tem prioridade se houver as duas).
+ */
+export function provedorAtivo(): Provedor | null {
+  if (!config.aiEnabled) return null;
+  const temAnthropic = !!process.env.ANTHROPIC_API_KEY;
+  const temGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  if (config.aiProvider === 'gemini') return temGemini ? 'gemini' : null;
+  if (config.aiProvider === 'anthropic') return temAnthropic ? 'anthropic' : null;
+  if (temAnthropic) return 'anthropic';
+  if (temGemini) return 'gemini';
+  return null;
+}
+
+export function iaConfigurada(): boolean {
+  return provedorAtivo() !== null;
+}
+
+const chamadorPadrao: ChamadorIA = async (pedido) => {
+  const p = provedorAtivo();
+  if (p === 'anthropic') return chamarAnthropic(pedido);
+  if (p === 'gemini') return chamarGemini(pedido);
+  throw new HttpError(503, 'A integração com IA não está configurada neste servidor. Consulte a administração (ANTHROPIC_API_KEY ou GEMINI_API_KEY).');
 };
 
 let chamadorAtual: ChamadorIA = chamadorPadrao;
+let configuradaForcada = false;
 
-export function chamarIA(...args: Parameters<ChamadorIA>) {
-  return chamadorAtual(...args);
+export function chamarIA(pedido: PedidoIA) {
+  return chamadorAtual(pedido);
 }
 
 /** Usado apenas em testes automatizados. */
@@ -77,7 +60,14 @@ export function substituirChamadorIA(fn: ChamadorIA | null, forcarConfigurada = 
   chamadorAtual = fn ?? chamadorPadrao;
   configuradaForcada = forcarConfigurada;
 }
-let configuradaForcada = false;
+
 export function iaDisponivel() {
   return configuradaForcada || iaConfigurada();
+}
+
+export function descricaoProvedor() {
+  const p = provedorAtivo();
+  if (p === 'anthropic') return { provedor: 'Anthropic (Claude)', modelo: config.anthropicModel };
+  if (p === 'gemini') return { provedor: 'Google (Gemini)', modelo: config.geminiModel };
+  return null;
 }

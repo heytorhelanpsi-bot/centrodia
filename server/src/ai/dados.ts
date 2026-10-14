@@ -148,6 +148,7 @@ export function estatisticas(d: DadosRegistros) {
       indicador: i.nome,
       registros_sem_avaliacao: total - [...i.versoes.values()].reduce((s, v) => s + v.valores.length, 0),
       versoes_de_escala: [...i.versoes].map(([versao, v]) => {
+        v.valores.sort((x, y) => x.data.localeCompare(y.data)); // ordem cronológica
         const vals = v.valores.map((x) => x.valor);
         const suficiente = vals.length >= MIN_OBS_TENDENCIA;
         return {

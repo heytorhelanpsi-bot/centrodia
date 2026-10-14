@@ -20,7 +20,7 @@ const MENU = [
   { to: '/evolucoes/nova', rotulo: 'Registrar evolução', ico: '✎', perm: 'evolucoes.registrar' },
   { to: '/grupos', rotulo: 'Atendimentos em grupo', ico: '👥' },
   { to: '/historico', rotulo: 'Histórico de evoluções', ico: '🕘' },
-  { to: '/relatorios', rotulo: 'Relatórios com IA', ico: '📄', permAlguma: ['relatorios.elaborar', 'relatorios.ver_aprovados'] },
+  { to: '/relatorios', rotulo: 'Relatórios', ico: '📄', permAlguma: ['relatorios.elaborar', 'relatorios.ver_aprovados'] },
   { to: '/atividades', rotulo: 'Atividades', ico: '🎵' },
   { to: '/indicadores', rotulo: 'Indicadores comportamentais', ico: '📈' },
   { to: '/configuracoes', rotulo: 'Usuários e configurações', ico: '⚙' },

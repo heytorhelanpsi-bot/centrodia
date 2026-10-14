@@ -4,7 +4,7 @@ import { exigir, tx } from '../lib/auth.js';
 import { auditar } from '../lib/auditoria.js';
 import { HttpError } from '../lib/util.js';
 import { dataISO, validar } from '../lib/validacao.js';
-import { chamarIA, iaDisponivel } from '../ai/cliente.js';
+import { chamarIA, descricaoProvedor, iaDisponivel } from '../ai/cliente.js';
 import { carregarRegistros, contextoAssistido, descreverRegistros, estatisticas, MIN_OBS_TENDENCIA, Pseudonimizador } from '../ai/dados.js';
 import {
   ESQUEMA_ANALISE_EVOLUCAO, ESQUEMA_ANALISE_LONGITUDINAL, promptAnaliseEvolucao, promptAnaliseLongitudinal, SYSTEM_ANALISE, VERSAO_PROMPT,
@@ -19,7 +19,7 @@ async function iaHabilitadaNaInstituicao(db: Db) {
 }
 
 iaRouter.get('/status', async (_req, res) => {
-  res.json({ disponivel: iaDisponivel() });
+  res.json({ disponivel: iaDisponivel(), ...(descricaoProvedor() ?? {}) });
 });
 
 function parseJSON(texto: string) {

@@ -24,7 +24,11 @@ com orientação jurídica. **Ele não substitui um parecer jurídico.**
 | CSRF / clickjacking / XSS | Cookie `SameSite=Strict`, cabeçalho anti-CSRF obrigatório, CSP restritiva, `frame-ancestors 'none'` e renderização de Markdown sem HTML arbitrário |
 | Exportação CSV | Proteção contra injeção de fórmulas |
 
-## Uso de IA
+## Relatórios sem IA
+
+O modo **automático** compila os relatórios inteiramente no servidor da instituição, sem enviar dados a terceiros. É a opção padrão e não depende das decisões abaixo.
+
+## Uso de IA (opcional)
 
 O que o sistema faz:
 - Chama a IA **somente pelo backend** e **somente** com os registros que o profissional selecionou.
@@ -44,9 +48,12 @@ Limitações honestas:
   não são reconhecidos automaticamente.
 
 Decisões da instituição **antes de habilitar a IA**:
-1. Avaliar o contrato e os termos do provedor (Anthropic): tratamento de dados, retenção, uso
-   para treinamento (por padrão, os dados enviados pela API comercial não são usados para treinar
-   modelos; confirme nos termos vigentes) e transferência internacional de dados (art. 33 da LGPD).
+1. Avaliar o contrato e os termos do provedor escolhido (Google ou Anthropic): tratamento de dados,
+   retenção, uso para treinamento e transferência internacional de dados (art. 33 da LGPD).
+   - **Google Gemini:** use somente uma chave de um projeto **com faturamento ativo** (nível pago) ou o Vertex AI.
+     No nível gratuito, os termos permitem usar o conteúdo para melhorar os produtos do Google.
+   - **Anthropic:** por padrão, os dados enviados pela API comercial não são usados para treinar modelos.
+   - Confirme sempre nos termos vigentes.
 2. Registrar o tratamento no inventário (ROPA) e, dado o risco, elaborar o **Relatório de Impacto
    à Proteção de Dados (RIPD)**.
 3. Definir a base legal aplicável. Para dados sensíveis, o art. 11 da LGPD prevê hipóteses como a

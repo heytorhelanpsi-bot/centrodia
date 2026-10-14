@@ -8,6 +8,7 @@ import { chamarIA } from '../ai/cliente.js';
 import { carregarRegistros, contextoAssistido, descreverRegistros, estatisticas, MIN_OBS_TENDENCIA, Pseudonimizador } from '../ai/dados.js';
 import { promptRelatorio, promptRelatorioGrupo, SYSTEM_RELATORIO, TIPOS_RELATORIO, VERSAO_PROMPT } from '../ai/prompts.js';
 import { gerarPDF } from '../lib/pdf.js';
+import { compilarRelatorio, compilarRelatorioGrupo } from '../lib/relatorio-automatico.js';
 import type { Db } from '../db/pool.js';
 
 export const relatoriosRouter = Router();
@@ -24,7 +25,9 @@ const criarSchema = z.object({
   registros_ids: z.array(z.string().uuid()).max(500).nullish(),
   incluir_diagnosticos: z.boolean().default(false),
   identificacao: z.enum(['completa', 'codigo']).default('completa'),
-  usar_ia: z.boolean().default(true),
+  usar_ia: z.boolean().optional(),
+  // 'automatico': compilado pelo sistema a partir dos registros (sem IA); 'ia': minuta por IA; 'manual': modelo em branco.
+  modo: z.enum(['automatico', 'ia', 'manual']).optional(),
   instrucoes: z.string().trim().max(2000).nullish(),
 }).superRefine((b, ctx) => {
   if (b.periodo_inicio > b.periodo_fim) ctx.addIssue({ code: 'custom', message: 'Período inválido', path: ['periodo_inicio'] });
@@ -34,6 +37,9 @@ const criarSchema = z.object({
 });
 
 type Criar = z.infer<typeof criarSchema>;
+type Modo = 'automatico' | 'ia' | 'manual';
+const modoDe = (b: { modo?: Modo; usar_ia?: boolean }): Modo => b.modo ?? (b.usar_ia === false ? 'manual' : 'ia');
+const ORIGEM: Record<Modo, string> = { ia: 'ia', automatico: 'sistema', manual: 'profissional' };
 
 const fmt = (d: string) => d.split('-').reverse().join('/');
 
@@ -50,15 +56,18 @@ function cabecalho(inst: any, titulo: string, ident: string[], periodo: string) 
   ].join('\n');
 }
 
-function rodape(nome: string, comIA: boolean) {
-  return ['', '---', `Profissional responsável: ${nome}`, `Data de emissão: ${fmt(hojeISO())}`, '',
-    comIA
-      ? '_Documento elaborado com apoio de ferramenta de IA a partir dos registros institucionais e revisado pelo profissional responsável._'
-      : '_Documento elaborado pelo profissional responsável a partir dos registros institucionais._'].join('\n');
+const NOTA_RODAPE: Record<Modo, string> = {
+  ia: '_Documento elaborado com apoio de ferramenta de IA a partir dos registros institucionais e revisado pelo profissional responsável._',
+  automatico: '_Documento compilado automaticamente pelo sistema a partir dos registros institucionais (sem uso de IA) e revisado pelo profissional responsável._',
+  manual: '_Documento elaborado pelo profissional responsável a partir dos registros institucionais._',
+};
+function rodape(nome: string, modo: Modo) {
+  return ['', '---', `Profissional responsável: ${nome}`, `Data de emissão: ${fmt(hojeISO())}`, '', NOTA_RODAPE[modo]].join('\n');
 }
 
 /** Gera o conteúdo (Markdown) de uma versão — com IA ou um modelo em branco para preenchimento manual. */
 async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }) {
+  const modo = modoDe(b);
   const titulo = TIPOS_RELATORIO[b.tipo].titulo;
   const periodo = `${fmt(b.periodo_inicio)} a ${fmt(b.periodo_fim)}`;
 
@@ -77,7 +86,9 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
       ...(c.local ? [`Local: ${c.local}`] : [])];
     let corpo: string;
     let modelo: string | null = null;
-    if (b.usar_ia) {
+    if (modo === 'automatico') {
+      corpo = compilarRelatorioGrupo(c, prep.agg, b.objetivo);
+    } else if (modo === 'ia') {
       const ps = await tx(req, (db) => Pseudonimizador.criar(db, '\u0000'));
       const resp = await chamarIA({
         system: SYSTEM_RELATORIO, esforco: 'medium',
@@ -90,7 +101,7 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
     } else {
       corpo = ['## Objetivo do relatório', '', '## Descrição da atividade proposta', '', '## Participação geral do grupo', '', '## Observações gerais', '', '## Pontos para acompanhamento', ''].join('\n');
     }
-    return { conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, b.usar_ia), modelo, registros: [] as string[] };
+    return { conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, modo), modelo, registros: [] as string[] };
   }
 
   const prep = await tx(req, async (db) => {
@@ -98,9 +109,10 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
     if (!ctx) throw new HttpError(404, 'Assistido não encontrado.');
     const dados = await carregarRegistros(db, b.assistido_id!, b.registros_ids?.length ? b.registros_ids : null, b.periodo_inicio, b.periodo_fim);
     const ps = await Pseudonimizador.criar(db, ctx.a.nome_completo);
-    return { ctx, dados, ps, inst: await instituicao(db) };
+    const profissionais = new Map<string, string>((await db.query('SELECT id, nome FROM usuarios')).rows.map((u) => [u.id, u.nome]));
+    return { ctx, dados, ps, profissionais, inst: await instituicao(db) };
   });
-  if (b.usar_ia && !prep.dados.evolucoes.length) throw new HttpError(400, 'Não há evoluções finalizadas no período/seleção para fundamentar o relatório.');
+  if (modo !== 'manual' && !prep.dados.evolucoes.length) throw new HttpError(400, 'Não há evoluções finalizadas no período/seleção para fundamentar o relatório.');
   const a = prep.ctx.a;
   const ident = b.identificacao === 'completa'
     ? [`Nome: ${a.nome_completo}`, `Código: ${a.codigo}`, `Idade: ${calcularIdade(a.data_nascimento)} anos`]
@@ -110,7 +122,9 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
 
   let corpo: string;
   let modelo: string | null = null;
-  if (b.usar_ia) {
+  if (modo === 'automatico') {
+    corpo = compilarRelatorio(prep.dados, { tipo: b.tipo, objetivo: b.objetivo, profissionais: prep.profissionais });
+  } else if (modo === 'ia') {
     const resp = await chamarIA({
       system: SYSTEM_RELATORIO, esforco: 'high',
       prompt: promptRelatorio({
@@ -128,14 +142,15 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
       'Síntese evolutiva', 'Pontos para acompanhamento'].map((s) => `## ${s}\n\n`).join('\n');
   }
   return {
-    conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, b.usar_ia),
+    conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, modo),
     modelo, registros: prep.dados.evolucoes.map((e) => e.id as string),
   };
 }
 
 relatoriosRouter.post('/', exigir('relatorios.elaborar'), async (req, res) => {
   const b = validar(criarSchema, req.body);
-  if (b.usar_ia && !tem(req, 'ia.gerar')) throw new HttpError(403, 'Sem permissão para gerar textos com IA.');
+  const modo = modoDe(b);
+  if (modo === 'ia' && !tem(req, 'ia.gerar')) throw new HttpError(403, 'Sem permissão para gerar textos com IA.');
   const g = await gerarConteudo(req, b);
   const r = await tx(req, async (db) => {
     const r = await db.query(
@@ -147,10 +162,10 @@ relatoriosRouter.post('/', exigir('relatorios.elaborar'), async (req, res) => {
     await db.query(
       `INSERT INTO relatorio_versoes (relatorio_id, numero, origem, conteudo, modelo, versao_prompt, instrucoes, autor_id)
        VALUES ($1, 1, $2, $3, $4, $5, $6, $7)`,
-      [id, b.usar_ia ? 'ia' : 'profissional', g.conteudo, g.modelo, b.usar_ia ? VERSAO_PROMPT : null,
-        JSON.stringify({ incluir_diagnosticos: b.incluir_diagnosticos, identificacao: b.identificacao, instrucoes: b.instrucoes ?? null }), req.usuario!.id]);
-    await auditar(db, req, b.usar_ia ? 'relatorio_minuta_ia' : 'relatorio_criado', 'relatorio', id,
-      { tipo: b.tipo, assistido_id: b.assistido_id, modelo: g.modelo, registros: g.registros.length });
+      [id, ORIGEM[modo], g.conteudo, g.modelo, modo === 'ia' ? VERSAO_PROMPT : null,
+        JSON.stringify({ incluir_diagnosticos: b.incluir_diagnosticos, identificacao: b.identificacao, instrucoes: b.instrucoes ?? null, selecao: !!b.registros_ids?.length }), req.usuario!.id]);
+    await auditar(db, req, { ia: 'relatorio_minuta_ia', automatico: 'relatorio_compilado', manual: 'relatorio_criado' }[modo], 'relatorio', id,
+      { tipo: b.tipo, assistido_id: b.assistido_id, modelo: g.modelo, registros: g.registros.length, modo });
     return { id };
   });
   res.status(201).json(r);
@@ -216,10 +231,16 @@ relatoriosRouter.post('/:id/versoes', exigir('relatorios.elaborar'), async (req,
   res.status(201).json(r);
 });
 
-/** Solicita nova versão à IA, opcionalmente com instruções. */
-relatoriosRouter.post('/:id/regenerar', exigir('relatorios.elaborar', 'ia.gerar'), async (req, res) => {
+/**
+ * Gera nova versão: com IA (opcionalmente com instruções) ou recompilando automaticamente
+ * a partir dos registros atuais do período (inclui registros salvos depois da criação).
+ */
+relatoriosRouter.post('/:id/regenerar', exigir('relatorios.elaborar'), async (req, res) => {
   const id = validar(z.string().uuid(), req.params.id);
-  const { instrucoes } = validar(z.object({ instrucoes: z.string().trim().max(2000).nullish() }), req.body);
+  const { instrucoes, modo } = validar(z.object({
+    instrucoes: z.string().trim().max(2000).nullish(), modo: z.enum(['ia', 'automatico']).default('ia'),
+  }), req.body);
+  if (modo === 'ia' && !tem(req, 'ia.gerar')) throw new HttpError(403, 'Sem permissão para gerar textos com IA.');
   const rel = await tx(req, async (db) => {
     const r = await db.query('SELECT * FROM relatorios WHERE id = $1', [id]);
     if (!r.rowCount) throw new HttpError(404, 'Relatório não encontrado.');
@@ -230,16 +251,18 @@ relatoriosRouter.post('/:id/regenerar', exigir('relatorios.elaborar', 'ia.gerar'
   const g = await gerarConteudo(req, {
     tipo: rel.tipo, assistido_id: rel.assistido_id, atividade_coletiva_id: rel.atividade_coletiva_id,
     periodo_inicio: rel.periodo_inicio, periodo_fim: rel.periodo_fim, objetivo: rel.objetivo,
-    registros_ids: rel.registros_ids, incluir_diagnosticos: !!rel.opcoes.incluir_diagnosticos,
-    identificacao: rel.opcoes.identificacao ?? 'completa', usar_ia: true, instrucoes: instrucoes ?? null,
+    registros_ids: rel.opcoes.selecao === false ? null : rel.registros_ids, incluir_diagnosticos: !!rel.opcoes.incluir_diagnosticos,
+    identificacao: rel.opcoes.identificacao ?? 'completa', modo, instrucoes: instrucoes ?? null,
   });
   const r = await tx(req, async (db) => {
     const n = await db.query('SELECT coalesce(max(numero),0)+1 AS n FROM relatorio_versoes WHERE relatorio_id = $1', [id]);
     const r = await db.query(
       `INSERT INTO relatorio_versoes (relatorio_id, numero, origem, conteudo, modelo, versao_prompt, instrucoes, autor_id)
-       VALUES ($1,$2,'ia',$3,$4,$5,$6,$7) RETURNING id, numero`,
-      [id, n.rows[0].n, g.conteudo, g.modelo, VERSAO_PROMPT, JSON.stringify({ ...rel.opcoes, instrucoes: instrucoes ?? null }), req.usuario!.id]);
-    await auditar(db, req, 'relatorio_nova_versao_ia', 'relatorio', id, { numero: r.rows[0].numero, modelo: g.modelo });
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, numero`,
+      [id, n.rows[0].n, ORIGEM[modo], g.conteudo, g.modelo, modo === 'ia' ? VERSAO_PROMPT : null,
+        JSON.stringify({ ...rel.opcoes, instrucoes: instrucoes ?? null }), req.usuario!.id]);
+    if (rel.tipo !== 'atividade_grupo') await db.query('UPDATE relatorios SET registros_ids = $2 WHERE id = $1', [id, g.registros]);
+    await auditar(db, req, modo === 'ia' ? 'relatorio_nova_versao_ia' : 'relatorio_recompilado', 'relatorio', id, { numero: r.rows[0].numero, modelo: g.modelo });
     return r.rows[0];
   });
   res.status(201).json(r);
@@ -273,8 +296,9 @@ relatoriosRouter.post('/:id/arquivar', exigir('relatorios.elaborar'), async (req
 /** Gera anexos individuais (minutas) para os participantes visíveis de um relatório de grupo. */
 relatoriosRouter.post('/:id/anexos', exigir('relatorios.elaborar'), async (req, res) => {
   const id = validar(z.string().uuid(), req.params.id);
-  const { usar_ia } = validar(z.object({ usar_ia: z.boolean().default(false) }), req.body);
-  if (usar_ia && !tem(req, 'ia.gerar')) throw new HttpError(403, 'Sem permissão para gerar textos com IA.');
+  const b0 = validar(z.object({ usar_ia: z.boolean().optional(), modo: z.enum(['automatico', 'ia', 'manual']).optional() }), req.body);
+  const modo: Modo = b0.modo ?? (b0.usar_ia ? 'ia' : 'manual');
+  if (modo === 'ia' && !tem(req, 'ia.gerar')) throw new HttpError(403, 'Sem permissão para gerar textos com IA.');
   const base = await tx(req, async (db) => {
     const r = await db.query('SELECT * FROM relatorios WHERE id = $1 AND tipo = $2', [id, 'atividade_grupo']);
     if (!r.rowCount) throw new HttpError(404, 'Relatório de grupo não encontrado.');
@@ -289,7 +313,7 @@ relatoriosRouter.post('/:id/anexos', exigir('relatorios.elaborar'), async (req, 
       tipo: 'participacao_atividades', assistido_id: p.assistido_id, atividade_coletiva_id: null,
       periodo_inicio: base.rel.periodo_inicio, periodo_fim: base.rel.periodo_fim,
       objetivo: `Anexo individual do relatório de atividade em grupo. ${base.rel.objetivo ?? ''}`.trim(),
-      registros_ids: [p.id], incluir_diagnosticos: false, identificacao: 'completa', usar_ia,
+      registros_ids: [p.id], incluir_diagnosticos: false, identificacao: 'completa', modo,
     });
     const nid = await tx(req, async (db) => {
       const r = await db.query(
@@ -299,7 +323,7 @@ relatoriosRouter.post('/:id/anexos', exigir('relatorios.elaborar'), async (req, 
           base.rel.periodo_inicio, base.rel.periodo_fim, [p.id], req.usuario!.id]);
       await db.query(
         `INSERT INTO relatorio_versoes (relatorio_id, numero, origem, conteudo, modelo, versao_prompt, instrucoes, autor_id) VALUES ($1,1,$2,$3,$4,$5,$6,$7)`,
-        [r.rows[0].id, usar_ia ? 'ia' : 'profissional', g.conteudo, g.modelo, usar_ia ? VERSAO_PROMPT : null,
+        [r.rows[0].id, ORIGEM[modo], g.conteudo, g.modelo, modo === 'ia' ? VERSAO_PROMPT : null,
           JSON.stringify({ identificacao: 'completa' }), req.usuario!.id]);
       await auditar(db, req, 'relatorio_anexo_criado', 'relatorio', r.rows[0].id, { relatorio_pai_id: id });
       return r.rows[0].id;

@@ -7,7 +7,7 @@
 | Servidor de aplicação (Node 22) | API + interface compilada (um único processo) | VPS com Docker, Render, Railway, Fly.io, AWS/GCP/Azure. **Prefira região Brasil** (ex.: São Paulo). |
 | PostgreSQL 14+ gerenciado | Dados persistentes, RLS, backups | AWS RDS, Google Cloud SQL, Azure Database, Supabase, Neon, ou PostgreSQL próprio com backup |
 | HTTPS | Proteção em trânsito | Proxy do provedor ou Nginx/Caddy com Let's Encrypt (gratuito) |
-| API da Anthropic (opcional) | Análises e minutas com IA | Conta em console.anthropic.com. Chave somente no servidor |
+| IA (opcional) | Minutas em texto corrido e análises com IA | **Google Gemini** (chave do Google AI Studio) **ou** Anthropic Claude. Chave somente no servidor |
 
 Não há outras integrações externas. O sistema **não envia e-mails**: a recuperação de conta usa
 links de uso único emitidos pela administração (válidos por 24 h). Uma integração de e-mail pode
@@ -43,9 +43,15 @@ ser adicionada depois, se desejado.
 | `PUBLIC_URL` | sim | URL pública (usada nos links de redefinição de senha) |
 | `COOKIE_SECURE` | sim | `true` (exige HTTPS) |
 | `TRUST_PROXY` | conforme | `true` se houver proxy/balanceador à frente (IPs corretos na auditoria e no limite de tentativas) |
-| `ANTHROPIC_API_KEY` | não | habilita a IA. Sem ela, os botões de IA ficam desabilitados e os relatórios podem ser escritos manualmente |
+| `AI_PROVIDER` | não | `gemini` ou `anthropic`. Vazio: usa o provedor cuja chave estiver definida |
+| `GEMINI_API_KEY` | não | habilita o Google Gemini |
+| `GEMINI_MODEL` | não | padrão `gemini-2.5-pro` (confira os modelos disponíveis em ai.google.dev; `gemini-2.5-flash` é mais barato) |
+| `ANTHROPIC_API_KEY` | não | habilita o Claude |
 | `ANTHROPIC_MODEL` | não | padrão `claude-opus-5-5` |
 | `AI_ENABLED` | não | `false` desliga a IA no servidor, independentemente da chave |
+
+Sem nenhuma chave de IA, o sistema funciona por completo: os relatórios são **compilados automaticamente**
+a partir dos registros, e só os botões de redação com IA ficam desabilitados.
 
 A chave da API nunca é enviada ao navegador. Todas as chamadas à IA saem do backend.
 
@@ -90,7 +96,27 @@ Coloque um proxy HTTPS (Caddy, Nginx ou o do provedor) à frente da porta 3000.
 | Certificado HTTPS | gratuito (Let's Encrypt) |
 | **Total sem IA** | **~US$ 25 – 80/mês** |
 
-### IA (Claude, cobrança por uso)
+### Relatórios automáticos
+Sem custo adicional: o sistema compila o relatório a partir dos registros, sem chamar serviços externos.
+
+### IA com Google Gemini (opcional, cobrança por uso)
+
+**Importante:** a assinatura do app Gemini (Google AI Pro) é cobrada separadamente da **API**, que é o
+que o sistema usa. Para usar o Gemini aqui:
+1. Acesse https://aistudio.google.com com a conta Google da instituição e crie uma chave de API (“Get API key”).
+2. **Ative o faturamento (nível pago) no projeto do Google Cloud vinculado à chave.** No nível gratuito,
+   os termos do Google permitem usar o conteúdo enviado para melhorar os produtos, o que é inadequado
+   para dados de saúde. No nível pago, o conteúdo não é usado para isso (confirme nos termos vigentes).
+   Para exigências maiores (contrato, região de dados), use o Gemini via Vertex AI.
+3. No servidor: `AI_PROVIDER=gemini` e `GEMINI_API_KEY=<chave>`. Reinicie o servidor.
+4. Em Configurações › Instituição, IA e retenção, confirme a indicação “Configurada — Google (Gemini)”.
+
+Custo de referência (confirme em ai.google.dev/pricing): o `gemini-2.5-pro` custa cerca de US$ 1,25
+por milhão de tokens de entrada e US$ 10 por milhão de saída; o `gemini-2.5-flash` custa cerca de
+US$ 0,30 e US$ 2,50. No cenário abaixo (40 relatórios e 200 análises por mês), o custo fica na faixa de
+**US$ 5 – 15/mês** com o Pro e de **menos de US$ 3/mês** com o Flash.
+
+### IA com Claude (opcional, cobrança por uso)
 Preço do modelo padrão `claude-opus-5-5`: US$ 4 por milhão de tokens de entrada e
 US$ 20 por milhão de tokens de saída (inclui o raciocínio do modelo).
 

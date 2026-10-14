@@ -184,7 +184,7 @@ function Instituicao() {
   const [ret, setRet] = useState<any>(null);
   const [iaHab, setIaHab] = useState(true);
   const [erroS, setErroS] = useState<unknown>(null);
-  const { dados: iaStatus } = useCarregar<{ disponivel: boolean }>('/ia/status');
+  const { dados: iaStatus } = useCarregar<{ disponivel: boolean; provedor?: string; modelo?: string }>('/ia/status');
   useEffect(() => { if (dados) { setInst(dados.instituicao); setRet(dados.retencao); setIaHab(dados.ia?.habilitada !== false); } }, [dados]);
   if (carregando || !inst) return <Carregando />;
   if (erro) return <ErroCaixa erro={erro} />;
@@ -209,7 +209,8 @@ function Instituicao() {
       </div>
       <div className="cartao">
         <h2>Inteligência artificial</h2>
-        <p className="pequeno">Situação no servidor: {iaStatus?.disponivel ? <span className="tag verde">Configurada</span> : <span className="tag ambar">Não configurada (ANTHROPIC_API_KEY ausente)</span>}</p>
+        <p className="pequeno">Situação no servidor: {iaStatus?.disponivel ? <span className="tag verde">Configurada — {iaStatus.provedor} · {iaStatus.modelo}</span> : <span className="tag ambar">Não configurada (defina GEMINI_API_KEY ou ANTHROPIC_API_KEY no servidor)</span>}</p>
+        <p className="mudo pequeno">Os relatórios automáticos funcionam sem IA. A IA é opcional e serve apenas para redigir minutas em texto corrido.</p>
         <p className="mudo pequeno">Os dados são enviados pseudonimizados (sem nome nem data de nascimento) apenas pelo servidor. Antes de habilitar em produção, avalie o contrato com o provedor, a política de retenção e a base legal (veja docs/LGPD.md).</p>
         <label className="chip"><input type="checkbox" checked={iaHab} onChange={(e) => setIaHab(e.target.checked)} />Permitir o uso de IA na instituição</label>
         <div style={{ marginTop: 10 }}><button className="btn" onClick={() => salvar('ia', { habilitada: iaHab, enviar_nome: false })}>Salvar</button></div>

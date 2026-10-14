@@ -18,7 +18,7 @@ com IA, com revisão humana obrigatória.
 | **Atendimentos em grupo** | O evento é registrado uma vez, com seleção múltipla de participantes (previstos do dia/turno, filtros e busca) e ausentes. Cada participante tem seu próprio registro, com participação, apoio, indicadores e evolução. A “avaliação comum” exige revisão individual, e evoluções idênticas são recusadas. Cada pessoa recebe uma evolução vinculada ao evento. |
 | **Histórico** | Lista geral com filtros (assistido, período, atividade, turno, profissional, tipo, indicador), exportação CSV/XLSX e linha do tempo individual com evoluções, participações em grupo, análises de IA, relatórios e correções. |
 | **Indicadores** | Gráficos descritivos por indicador e **por versão de escala**. Lacunas aparecem como “não avaliado” (nunca como zero), o número de observações é sempre mostrado e não há médias. A mediana e a tendência só aparecem com ≥ 4 observações. Inclui um guia das escalas para padronizar a equipe e a configuração de indicadores personalizados (nova versão de escala sem alterar avaliações antigas). |
-| **Relatórios com IA** | 8 modelos de relatório. Seleção de assistido, período e registros. A IA gera uma **minuta** que pode ser editada (cada edição vira uma nova versão), regenerada com instruções, comparada lado a lado com os registros originais e aprovada com confirmação de revisão. O PDF só é gerado após a aprovação. Relatórios de grupo trazem uma síntese geral e anexos individuais com acesso controlado. |
+| **Relatórios** | 8 modelos. **Modo automático, sem IA:** o sistema reúne todas as evoluções e registros do período (atividades e realização, participação, indicadores por versão de escala, comportamentos, apoios, ocorrências, pontos para acompanhamento por regras e anexo cronológico com o texto integral de cada registro), com botão para recompilar depois de novos registros. Também é possível escolher o assistido, o período e os registros. **Com IA (opcional: Gemini ou Claude):** a IA gera uma **minuta** que pode ser editada (cada edição vira uma nova versão), regenerada com instruções, comparada lado a lado com os registros originais e aprovada com confirmação de revisão. O PDF só é gerado após a aprovação. Relatórios de grupo trazem uma síntese geral e anexos individuais com acesso controlado. |
 | **Análises com IA** | Análise de uma evolução (7 seções pedidas + lacunas) e análise longitudinal (30/60/90 dias ou período livre) com estatísticas calculadas pelo sistema. Revisão humana obrigatória. |
 | **Usuários e configurações** | Usuários, perfis e matriz de permissões, atribuição de assistidos por usuário, links de redefinição de senha, encerramento de sessões, dados institucionais, política de IA e de retenção, auditoria, LGPD (exportação, anonimização e remoção de dados de exemplo) e importação da tabela CID-10. |
 
@@ -26,7 +26,7 @@ com IA, com revisão humana obrigatória.
 
 ```
 client/   React 18 + Vite + TypeScript (SPA), recharts
-server/   Node.js 22 + Express 5 + TypeScript, PostgreSQL 16 (pg), zod, Anthropic SDK
+server/   Node.js 22 + Express 5 + TypeScript, PostgreSQL 16 (pg), zod, Google GenAI SDK (Gemini) e Anthropic SDK (opcionais)
           src/db/migrations   esquema, RLS, gatilhos e dados iniciais (SQL)
           test/               testes automatizados contra PostgreSQL real
 docs/     PRODUCAO.md (implantação, integrações e custos) e LGPD.md
@@ -75,7 +75,7 @@ Veja [docs/PRODUCAO.md](docs/PRODUCAO.md).
 ## Testes
 
 ```bash
-npm test             # 38 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
+npm test             # 45 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
 npm run typecheck
 ```
 
@@ -89,4 +89,4 @@ por participante), dashboard, exportação, auditoria imutável, IA (sem nome/CP
 autorizado no prompt, revisão humana, desativação institucional), relatórios (versões, aprovação,
 PDF, perfil de consulta) e LGPD (exportação, anonimização, remoção de exemplos).
 
-A IA é testada com um provedor simulado. Uma chamada real exige `ANTHROPIC_API_KEY`.
+A IA é testada com provedores simulados (Gemini e Claude). Uma chamada real exige `GEMINI_API_KEY` ou `ANTHROPIC_API_KEY`. Veja como configurar o Gemini em [docs/PRODUCAO.md](docs/PRODUCAO.md).

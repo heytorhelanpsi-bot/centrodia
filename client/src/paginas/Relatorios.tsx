@@ -6,6 +6,28 @@ import { TIPOS_RELATORIO, TURNOS, data, dataHora, diasAtras, hojeISO } from '../
 import { BuscaAssistido, Campo, Carregando, ErroCaixa, Markdown, useCarregar, useConfirmar, useToast, Vazio, type AssistidoResumo } from '../componentes/ui';
 import { EtiquetaStatus } from './Assistidos';
 
+interface StatusIA { disponivel: boolean; provedor?: string; modelo?: string }
+
+function rotuloOrigem(v: { origem: string; numero: number }) {
+  if (v.origem === 'ia') return 'Gerada pela IA';
+  if (v.origem === 'sistema') return 'Compilada automaticamente (sem IA)';
+  return v.numero === 1 ? 'Modelo para preenchimento manual' : 'Revisada pelo profissional';
+}
+
+function OpcaoModo<T extends string>({ atual, valor, onChange, titulo, texto, desabilitado }: {
+  atual: T; valor: T; onChange: (v: T) => void; titulo: string; texto: string; desabilitado?: boolean;
+}) {
+  return (
+    <label className="indicador" style={{ cursor: desabilitado ? 'not-allowed' : 'pointer', opacity: desabilitado ? 0.55 : 1, margin: 0,
+      borderColor: atual === valor ? 'var(--azul-600)' : undefined, background: atual === valor ? 'var(--azul-50)' : undefined }}>
+      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 700 }}>
+        <input type="radio" name="modo-relatorio" checked={atual === valor} disabled={desabilitado} onChange={() => onChange(valor)} style={{ width: 18, height: 18 }} />{titulo}
+      </span>
+      <span className="mudo pequeno" style={{ display: 'block', marginTop: 4 }}>{texto}</span>
+    </label>
+  );
+}
+
 export function Relatorios() {
   const { pode } = useAuth();
   const nav = useNavigate();
@@ -15,7 +37,7 @@ export function Relatorios() {
   return (
     <>
       <div className="cab-pagina">
-        <div><h1>Relatórios com IA</h1><p className="sub">A IA produz minutas; todo documento passa por revisão e aprovação profissional.</p></div>
+        <div><h1>Relatórios</h1><p className="sub">Compilados automaticamente a partir dos registros, com IA opcional. Todo documento passa por revisão e aprovação profissional.</p></div>
         {pode('relatorios.elaborar') && <Link className="btn grande" to="/relatorios/novo">+ Novo relatório</Link>}
       </div>
       <div className="acoes" style={{ marginBottom: 12 }}>
@@ -58,11 +80,12 @@ export function NovoRelatorio() {
   const nav = useNavigate();
   const toast = useToast();
   const { pode } = useAuth();
-  const { dados: ia } = useCarregar<{ disponivel: boolean }>('/ia/status');
+  const { dados: ia } = useCarregar<StatusIA>('/ia/status');
   const [tipo, setTipo] = useState(sp.get('tipo') ?? 'individual_evolucao');
   const [assistido, setAssistido] = useState<AssistidoResumo | null>(null);
   const [coletivaId, setColetivaId] = useState(sp.get('coletiva') ?? '');
-  const [p, setP] = useState({ periodo_inicio: sp.get('data') ?? diasAtras(30), periodo_fim: sp.get('data') ?? hojeISO(), objetivo: '', incluir_diagnosticos: false, identificacao: 'completa', usar_ia: true });
+  const [p, setP] = useState({ periodo_inicio: sp.get('data') ?? diasAtras(30), periodo_fim: sp.get('data') ?? hojeISO(), objetivo: '', incluir_diagnosticos: false, identificacao: 'completa' });
+  const [modo, setModo] = useState<'automatico' | 'ia' | 'manual'>('automatico');
   const [selecionar, setSelecionar] = useState(false);
   const [registros, setRegistros] = useState<Set<string>>(new Set());
   const [erro, setErro] = useState<unknown>(null);
@@ -73,7 +96,8 @@ export function NovoRelatorio() {
 
   useEffect(() => { const a = sp.get('assistido'); if (a) api.get(`/assistidos/${a}`).then(setAssistido).catch(() => {}); }, [sp]);
   // Sem IA disponível (ou sem permissão), o relatório é criado com o modelo para preenchimento manual.
-  useEffect(() => { if ((ia && !ia.disponivel) || !pode('ia.gerar')) setP((x) => ({ ...x, usar_ia: false })); }, [ia, pode]);
+  const iaPermitida = !!ia?.disponivel && pode('ia.gerar');
+  useEffect(() => { if (!iaPermitida && modo === 'ia') setModo('automatico'); }, [iaPermitida, modo]);
   useEffect(() => { if (evols) setRegistros(new Set(evols.map((e) => e.id))); }, [evols]);
   useEffect(() => {
     const hoje = hojeISO();
@@ -86,10 +110,10 @@ export function NovoRelatorio() {
     setGerando(true); setErro(null);
     try {
       const r = await api.post('/relatorios', {
-        tipo, ...p, assistido_id: grupo ? null : assistido?.id, atividade_coletiva_id: grupo ? coletivaId || null : null,
+        tipo, ...p, modo, assistido_id: grupo ? null : assistido?.id, atividade_coletiva_id: grupo ? coletivaId || null : null,
         registros_ids: !grupo && selecionar ? [...registros] : null,
       });
-      toast('ok', p.usar_ia ? 'Minuta gerada. Revise o texto antes de aprovar.' : 'Relatório criado para preenchimento.');
+      toast('ok', { automatico: 'Relatório compilado a partir dos registros. Revise antes de aprovar.', ia: 'Minuta gerada. Revise o texto antes de aprovar.', manual: 'Relatório criado para preenchimento.' }[modo]);
       nav(`/relatorios/${r.id}`);
     } catch (e) { setErro(e); window.scrollTo(0, 0); } finally { setGerando(false); }
   };
@@ -119,9 +143,17 @@ export function NovoRelatorio() {
         <div className="opcoes">
           {!grupo && <label className="chip"><input type="checkbox" checked={p.incluir_diagnosticos} onChange={(e) => setP({ ...p, incluir_diagnosticos: e.target.checked })} />Incluir diagnósticos registrados</label>}
           {!grupo && <label className="chip"><input type="checkbox" checked={selecionar} onChange={(e) => setSelecionar(e.target.checked)} />Escolher registros específicos</label>}
-          <label className="chip"><input type="checkbox" checked={p.usar_ia} disabled={!pode('ia.gerar') || !ia?.disponivel} onChange={(e) => setP({ ...p, usar_ia: e.target.checked })} />Gerar minuta com IA</label>
         </div>
-        {ia && !ia.disponivel && <p className="mudo pequeno">IA não configurada no servidor: o relatório será criado com o modelo de seções para preenchimento manual.</p>}
+        <fieldset style={{ marginTop: 14 }}>
+          <legend>Como elaborar o relatório</legend>
+          <div className="grade grade-3">
+            <OpcaoModo atual={modo} valor="automatico" onChange={setModo} titulo="Automático, a partir dos registros"
+              texto="O sistema reúne todas as evoluções do período: atividades, participação, indicadores, comportamentos, apoios, ocorrências e um anexo cronológico. Sem IA." />
+            <OpcaoModo atual={modo} valor="ia" onChange={setModo} desabilitado={!iaPermitida} titulo={`Redação com IA${ia?.provedor ? ` (${ia.provedor})` : ''}`}
+              texto={iaPermitida ? 'A IA redige uma minuta em texto corrido a partir dos registros pseudonimizados.' : 'Indisponível: IA não configurada no servidor ou sem permissão.'} />
+            <OpcaoModo atual={modo} valor="manual" onChange={setModo} titulo="Modelo em branco" texto="Somente as seções, para redação manual." />
+          </div>
+        </fieldset>
       </div>
       {selecionar && evols && (
         <div className="cartao">
@@ -137,7 +169,7 @@ export function NovoRelatorio() {
       )}
       <div className="barra-acoes">
         <button className="btn grande" disabled={gerando || (grupo ? !coletivaId : !assistido)} onClick={gerar}>
-          {gerando ? (p.usar_ia ? 'Gerando minuta… (pode levar até 2 minutos)' : 'Criando…') : p.usar_ia ? '✦ Gerar minuta' : 'Criar relatório'}</button>
+          {gerando ? (modo === 'ia' ? 'Gerando minuta… (pode levar até 2 minutos)' : 'Gerando…') : { automatico: 'Gerar relatório', ia: '✦ Gerar minuta com IA', manual: 'Criar relatório' }[modo]}</button>
         <button className="btn sec grande" onClick={() => nav(-1)}>Cancelar</button>
       </div>
     </>
@@ -150,7 +182,7 @@ export function RelatorioDetalhe() {
   const toast = useToast();
   const confirmar = useConfirmar();
   const { dados: r, erro, carregando, recarregar } = useCarregar<any>(`/relatorios/${id}`);
-  const { dados: ia } = useCarregar<{ disponivel: boolean }>('/ia/status');
+  const { dados: ia } = useCarregar<StatusIA>('/ia/status');
   const [selId, setSelId] = useState<string | null>(null);
   const [editando, setEditando] = useState<string | null>(null);
   const [instrucoes, setInstrucoes] = useState('');
@@ -195,12 +227,12 @@ export function RelatorioDetalhe() {
           <h2>Versões</h2>
           <div className="opcoes">{r.versoes.map((v: any) => (
             <label key={v.id} className="chip"><input type="radio" name="versao" checked={v.id === versao.id} onChange={() => { setSelId(v.id); setEditando(null); }} />
-              v{v.numero} · {v.origem === 'ia' ? 'Gerada pela IA' : v.modelo === null && v.numero === 1 ? 'Modelo para preenchimento manual' : 'Revisada pelo profissional'}{v.id === r.versao_aprovada_id ? ' · aprovada' : ''}</label>))}</div>
+              v{v.numero} · {rotuloOrigem(v)}{v.id === r.versao_aprovada_id ? ' · aprovada' : ''}</label>))}</div>
         </div>
       )}
 
       <div className="acoes" style={{ marginBottom: 10 }}>
-        <span className={`tag ${versao.origem === 'ia' ? 'ia' : 'verde'}`}>{versao.origem === 'ia' ? `Texto produzido pela IA (${versao.modelo ?? ''})` : versao.numero === 1 ? 'Redigido pelo profissional (sem IA)' : 'Versão revisada pelo profissional'}</span>
+        <span className={`tag ${versao.origem === 'ia' ? 'ia' : versao.origem === 'sistema' ? 'azul' : 'verde'}`}>{versao.origem === 'ia' ? `Texto produzido pela IA (${versao.modelo ?? ''})` : rotuloOrigem(versao)}</span>
         <span className="mudo pequeno">v{versao.numero} · {dataHora(versao.criado_em)} · {versao.autor_nome}</span>
         {podeEditar && !editando && <button className="btn sec peq" onClick={() => setEditando(versao.conteudo)}>Editar texto</button>}
         {r.registros.length > 0 && <button className="btn sec peq" aria-pressed={comparar} onClick={() => setComparar(!comparar)}>{comparar ? 'Ocultar registros originais' : 'Comparar com os registros originais'}</button>}
@@ -230,18 +262,26 @@ export function RelatorioDetalhe() {
 
       {minuta && pode('relatorios.elaborar') && editando === null && (
         <div className="grade grade-2" style={{ marginTop: 16 }}>
-          {pode('ia.gerar') && (
+          {r.tipo !== 'atividade_grupo' && (
+            <div className="cartao">
+              <h2>Recompilar a partir dos registros</h2>
+              <p className="mudo pequeno">Gera uma nova versão automática (sem IA) com os registros finalizados atuais do período, incluindo os salvos depois da criação do relatório.</p>
+              <button className="btn sec" disabled={!!ocupado} onClick={() => acao('recomp', () => api.post(`/relatorios/${r.id}/regenerar`, { modo: 'automatico' }), 'Nova versão compilada a partir dos registros.')}>
+                {ocupado === 'recomp' ? 'Compilando…' : 'Recompilar relatório'}</button>
+            </div>
+          )}
+          {pode('ia.gerar') && ia?.disponivel && (
             <div className="cartao">
               <h2>Solicitar nova versão à IA</h2>
               <Campo rotulo="Instruções (opcional)">{(p) => <textarea {...p} style={{ minHeight: 70 }} placeholder="Ex.: linguagem mais objetiva; detalhar a seção de apoios" value={instrucoes} onChange={(e) => setInstrucoes(e.target.value)} />}</Campo>
-              <button className="btn sec" disabled={!!ocupado || !ia?.disponivel} onClick={() => acao('regen', () => api.post(`/relatorios/${r.id}/regenerar`, { instrucoes: instrucoes || null }), 'Nova versão gerada pela IA.')}>
+              <button className="btn sec" disabled={!!ocupado || !ia?.disponivel} onClick={() => acao('regen', () => api.post(`/relatorios/${r.id}/regenerar`, { modo: 'ia', instrucoes: instrucoes || null }), 'Nova versão gerada pela IA.')}>
                 {ocupado === 'regen' ? 'Gerando…' : '✦ Gerar nova versão'}</button>
             </div>
           )}
           {pode('relatorios.aprovar') && (
             <div className="cartao">
               <h2>Aprovar e salvar</h2>
-              <p className="pequeno">Será aprovada a <strong>versão {versao.numero}</strong> ({versao.origem === 'ia' ? 'texto da IA sem edição' : 'revisada pelo profissional'}). Após a aprovação, o documento não pode ser alterado.</p>
+              <p className="pequeno">Será aprovada a <strong>versão {versao.numero}</strong> ({versao.origem === 'ia' ? 'texto da IA sem edição' : versao.origem === 'sistema' ? 'compilação automática sem edição' : 'revisada pelo profissional'}). Após a aprovação, o documento não pode ser alterado.</p>
               <label className="chip" style={{ marginBottom: 10 }}><input type="checkbox" checked={confirmo} onChange={(e) => setConfirmo(e.target.checked)} />Revisei integralmente o documento e confirmo que está fundamentado nos registros</label>
               <button className="btn verde" disabled={!confirmo || !!ocupado} onClick={() => acao('aprovar', () => api.post(`/relatorios/${r.id}/aprovar`, { versao_id: versao.id, confirmo_revisao: true }), 'Relatório aprovado.')}>
                 {ocupado === 'aprovar' ? 'Aprovando…' : 'Aprovar relatório'}</button>
@@ -256,8 +296,9 @@ export function RelatorioDetalhe() {
           <p className="mudo pequeno">Cada anexo é um documento separado, visível apenas a quem tem acesso ao respectivo assistido.</p>
           {r.anexos.length > 0 && <ul className="lista-simples">{r.anexos.map((a: any) => <li key={a.id}><span>{a.assistido_nome} <span className="mudo">· {a.assistido_codigo}</span></span><span className="acoes"><EtiquetaStatus s={a.status} /><Link className="btn sec peq" to={`/relatorios/${a.id}`}>Abrir</Link></span></li>)}</ul>}
           <div className="acoes" style={{ marginTop: 8 }}>
-            <button className="btn sec" disabled={!!ocupado} onClick={() => acao('anexos', () => api.post(`/relatorios/${r.id}/anexos`, { usar_ia: false }), 'Anexos criados.')}>Criar anexos (modelo em branco)</button>
-            {pode('ia.gerar') && <button className="btn sec" disabled={!!ocupado || !ia?.disponivel} onClick={() => acao('anexos', () => api.post(`/relatorios/${r.id}/anexos`, { usar_ia: true }), 'Anexos gerados pela IA.')}>{ocupado === 'anexos' ? 'Gerando…' : '✦ Gerar anexos com IA'}</button>}
+            <button className="btn sec" disabled={!!ocupado} onClick={() => acao('anexos', () => api.post(`/relatorios/${r.id}/anexos`, { modo: 'automatico' }), 'Anexos compilados a partir dos registros.')}>Gerar anexos automáticos (sem IA)</button>
+            <button className="btn sec" disabled={!!ocupado} onClick={() => acao('anexos', () => api.post(`/relatorios/${r.id}/anexos`, { modo: 'manual' }), 'Anexos criados.')}>Criar anexos (modelo em branco)</button>
+            {pode('ia.gerar') && <button className="btn sec" disabled={!!ocupado || !ia?.disponivel} onClick={() => acao('anexos', () => api.post(`/relatorios/${r.id}/anexos`, { modo: 'ia' }), 'Anexos gerados pela IA.')}>{ocupado === 'anexos' ? 'Gerando…' : '✦ Gerar anexos com IA'}</button>}
           </div>
         </div>
       )}

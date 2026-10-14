@@ -64,3 +64,12 @@ describe('estatísticas de indicadores', () => {
     expect(s.indicadores[0].registros_sem_avaliacao).toBe(1);
   });
 });
+
+describe('ordem cronológica das séries', () => {
+  it('ordena as pontuações por data, independentemente da ordem de leitura', () => {
+    const evol = [{ id: 'b', data: '2026-02-01', tipo: 'individual' }, { id: 'a', data: '2026-01-01', tipo: 'individual' }];
+    const av = ['b', 'a'].map((id, i) => ({ evolucao_id: id, indicador_id: 'x', nome: 'Foco', valor: i ? 1 : 5, versao: 1, minimo: 0, maximo: 5, direcao: 'maior_melhor' }));
+    const s = estatisticas({ evolucoes: evol, atividades: [], avaliacoes: av, coletivas: [] } as any);
+    expect(s.indicadores[0].versoes_de_escala[0].serie.map((p) => p.data)).toEqual(['2026-01-01', '2026-02-01']);
+  });
+});

@@ -19,7 +19,10 @@ export const config = {
   appDbRole: process.env.APP_DB_ROLE ?? 'reabilita_app',
   // Chave de 32 bytes (base64) para cifrar observações restritas.
   dataEncryptionKey: req('DATA_ENCRYPTION_KEY', env === 'production' ? undefined : 'ZGV2LW9ubHkta2V5LWRvLW5vdC11c2UtaW4tcHJvZCE='),
+  // Provedor de IA: 'anthropic' | 'gemini' | vazio (detecta pela chave configurada).
+  aiProvider: (process.env.AI_PROVIDER ?? '').toLowerCase(),
   anthropicModel: process.env.ANTHROPIC_MODEL ?? 'claude-opus-5-5',
+  geminiModel: process.env.GEMINI_MODEL ?? 'gemini-2.5-pro',
   aiEnabled: (process.env.AI_ENABLED ?? 'true') !== 'false',
   cookieSecure: (process.env.COOKIE_SECURE ?? (env === 'production' ? 'true' : 'false')) === 'true',
   trustProxy: process.env.TRUST_PROXY === 'true',
