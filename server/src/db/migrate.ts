@@ -52,7 +52,14 @@ async function garantirPapelAplicacao(client: pg.Client, appRole: string) {
   const cmd = await client.query(
     `SELECT format($1, $2::text, $3::text) AS sql`,
     [existe ? 'ALTER ROLE %I WITH LOGIN PASSWORD %L' : 'CREATE ROLE %I WITH LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD %L', appRole, senha]);
-  await client.query(cmd.rows[0].sql);
+  try {
+    await client.query(cmd.rows[0].sql);
+  } catch (e) {
+    // Papel já existente criado por outro administrador: mantém a senha atual.
+    if (!existe) throw e;
+    console.warn(`Aviso: não foi possível atualizar a senha do papel ${appRole} (${(e as Error).message}). A senha existente foi mantida.`);
+    return;
+  }
   if (!existe) console.log(`Papel da aplicação criado: ${appRole}`);
 }
 
