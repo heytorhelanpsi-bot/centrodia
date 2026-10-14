@@ -58,6 +58,15 @@ describe('autenticação e sessão', () => {
     expect((await c.get('/api/auth/me')).status).toBe(401);
   });
 
+  it('configuração inicial fica bloqueada quando já existem usuários', async () => {
+    const g = await request(app).get('/api/auth/configuracao-inicial');
+    expect(g.body.necessaria).toBe(false);
+    const p = await request(app).post('/api/auth/configuracao-inicial').set('X-Requested-With', 'psidia')
+      .send({ nome: 'Intruso', email: 'intruso@teste.org', senha: 'SenhaForte123' });
+    expect(p.status).toBe(409);
+    expect((await owner.query(`SELECT 1 FROM usuarios WHERE email = 'intruso@teste.org'`)).rowCount).toBe(0);
+  });
+
   it('não permite indexação', async () => {
     const r = await request(app).get('/robots.txt');
     expect(r.text).toContain('Disallow: /');

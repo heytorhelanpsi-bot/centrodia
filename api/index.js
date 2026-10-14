@@ -1,10 +1,18 @@
 // Função serverless da Vercel: toda requisição /api/* é atendida pela API Express do PsiDia.
 // O código do servidor é compilado no build (npm run build → server/dist).
-import { criarApp } from '../server/dist/app.js';
-import { inicializar } from '../server/dist/lib/inicializacao.js';
 
-const app = criarApp();
+let app = null;
 let pronto = null;
+
+/** Carrega a API e executa a inicialização uma vez por instância (migrações, chave, segurança). */
+async function preparar() {
+  const [{ criarApp }, { inicializar }] = await Promise.all([
+    import('../server/dist/app.js'),
+    import('../server/dist/lib/inicializacao.js'),
+  ]);
+  await inicializar();
+  app = criarApp();
+}
 
 /** Restaura o caminho original (/api/...) caso a reescrita da Vercel o tenha passado como parâmetro. */
 function restaurarCaminho(req) {
@@ -18,15 +26,14 @@ function restaurarCaminho(req) {
 
 export default async function handler(req, res) {
   restaurarCaminho(req);
-  // Migrações, verificação de segurança e administrador inicial: uma vez por instância.
-  pronto ??= inicializar().catch((e) => { pronto = null; throw e; });
+  pronto ??= preparar().catch((e) => { pronto = null; throw e; });
   try {
     await pronto;
   } catch (e) {
     console.error('[inicialização]', e);
     res.statusCode = 503;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ erro: 'O servidor não está configurado corretamente. A administração deve verificar os logs da Vercel.' }));
+    res.end(JSON.stringify({ erro: `O servidor não está pronto: ${e instanceof Error ? e.message : 'erro de configuração'}` }));
     return;
   }
   return app(req, res);

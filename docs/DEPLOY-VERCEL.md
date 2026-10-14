@@ -1,87 +1,72 @@
-# Deploy do PsiDia na Vercel (gratuito)
+# Deploy do PsiDia na Vercel (gratuito, sem variáveis)
 
-O PsiDia está pronto para a Vercel: a interface é servida como site estático e a API roda como
-função serverless (`api/index.js`). O banco é um PostgreSQL **Neon**, criado pelo próprio painel da Vercel.
+O deploy funciona como o do PsicoMeet, com um passo a mais: conectar o banco de dados com um clique.
+**Não é preciso preencher nenhuma variável de ambiente.**
 
 - **Custo:** R$ 0 (Vercel Hobby + Neon Free). A IA fica desligada e os relatórios são automáticos.
-- **Dados no Brasil:** a função roda em São Paulo (`gru1`, definido no `vercel.json`). Escolha
-  também São Paulo para o banco.
-- **Tempo:** cerca de 15 minutos, sem terminal.
+- **Tempo:** cerca de 10 minutos, pelo navegador (funciona também no celular).
 
-> **Atenção — termos do plano Hobby:** o plano gratuito da Vercel é destinado a uso pessoal e não
-> comercial. Para uso institucional contínuo, avalie o plano Pro (US$ 20/mês por membro) ou o deploy
-> gratuito alternativo no Render (`DEPLOY-GRATUITO.md`).
+> **Termos do plano Hobby:** o plano gratuito da Vercel é destinado a uso pessoal e não comercial.
+> Para uso institucional contínuo, avalie o plano Pro ou o deploy no Render (`DEPLOY-GRATUITO.md`).
 
-## 1. Código no branch principal
+## Passo 1 — Importar o repositório
 
-A Vercel publica em produção o branch `main`. Faça o merge do branch `claude/reabilita-mais` no `main`
-(GitHub › Pull requests).
+1. Acesse https://vercel.com/new.
+2. Em **Import Git Repository**, escolha **centrodia** › **Import**.
+3. Não altere nada nas configurações (o `vercel.json` do repositório já define tudo) e clique em **Deploy**.
 
-## 2. Importar o projeto
+O primeiro deploy fica pronto, mas o app ainda mostra “O servidor não está pronto: Banco de dados não
+conectado”. Isso é esperado: falta o banco.
 
-1. Acesse https://vercel.com/new e escolha o repositório **centrodia** (Import).
-2. **Não altere** as configurações de build: o arquivo `vercel.json` já define instalação, build,
-   diretório de saída, rotas e região.
-3. Ainda **não** clique em Deploy: crie antes o banco e as variáveis (passos 3 e 4). Se já tiver
-   clicado, sem problema: o primeiro deploy falhará e basta refazê-lo no fim (passo 5).
+## Passo 2 — Conectar o banco (1 clique)
 
-## 3. Criar o banco (Neon, pelo painel da Vercel)
+1. No projeto, abra a aba **Storage** › **Create Database** › **Neon** (Serverless Postgres) › **Continue**.
+2. Plano **Free**. Região: **São Paulo** (ou a mais próxima disponível) › **Create**.
+3. Na tela seguinte, confirme a conexão com o projeto (**Connect**), com os ambientes marcados.
 
-1. No projeto, abra **Storage › Create Database › Neon (Serverless Postgres)** › plano **Free**.
-2. Região: **São Paulo (South America)**, se disponível. Se não houver, escolha **Washington, D.C.
-   (US East)** e troque `"regions": ["gru1"]` por `["iad1"]` no `vercel.json`.
-3. Conecte o banco ao projeto (ambientes *Production* e *Preview*). A Vercel cria automaticamente
-   as variáveis `DATABASE_URL` e `DATABASE_URL_UNPOOLED`.
+## Passo 3 — Publicar de novo
 
-## 4. Variáveis de ambiente
+1. Abra a aba **Deployments**, toque nos **⋯** do último deploy › **Redeploy**.
+2. Quando terminar, abra o endereço do projeto (`https://<projeto>.vercel.app`).
 
-Em **Settings › Environment Variables**, adicione (ambiente *Production*):
+## Passo 4 — Primeiro acesso
 
-| Variável | Valor |
+O PsiDia abre a tela **“Crie a conta de administração”**. Preencha seu nome, e-mail e senha.
+Essa conta terá acesso total e poderá cadastrar a equipe em **Usuários e configurações**.
+
+> Faça isso logo após o deploy: a tela só aparece enquanto nenhum usuário existir e, depois do
+> primeiro cadastro, fica bloqueada.
+
+Depois, siga o checklist de `PRODUCAO.md`: dados da instituição, usuários e permissões, catálogo CID,
+escalas e política de retenção. Para instalar nos aparelhos: Android (Chrome › ⋮ › Instalar app) ou
+iPhone/iPad (Safari › Compartilhar › Adicionar à Tela de Início).
+
+## O que acontece automaticamente
+
+Na primeira requisição, o app:
+- aplica as migrações do banco;
+- cria o papel de banco `psidia_app`, sem privilégios, e passa a usá-lo, de modo que as regras de
+  acesso por linha (RLS) sempre valem. A senha desse papel é derivada da conexão criada pela Vercel;
+- gera a chave de cifragem das observações restritas e a guarda numa tabela que o app comum não
+  consegue ler.
+
+Se algo estiver errado, o app responde “O servidor não está pronto: …” com o motivo, e o detalhe
+aparece em **Logs** na Vercel.
+
+## Opcional (mais segurança)
+
+Em **Settings › Environment Variables** você pode definir:
+
+| Variável | Para quê |
 |---|---|
-| `APP_DB_PASSWORD` | uma senha forte e exclusiva (o app cria o papel `psidia_app` com ela) |
-| `DATA_ENCRYPTION_KEY` | chave de 32 bytes em base64 (veja abaixo) |
-| `MIGRAR_AO_INICIAR` | `true` |
-| `AI_ENABLED` | `false` |
-| `ADMIN_EMAIL` | seu e-mail (primeiro administrador) |
-| `ADMIN_SENHA_INICIAL` | senha provisória com 10+ caracteres, letras e números |
-| `ADMIN_NOME` | seu nome |
-
-**Gerar a `DATA_ENCRYPTION_KEY` sem terminal:** abra o console do navegador (F12 › Console), cole a
-linha abaixo e copie o resultado:
-```js
-btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
-```
-**Guarde essa chave em um gerenciador de senhas.** Sem ela, as observações restritas não podem ser
-lidas em uma restauração.
-
-Por que `APP_DB_PASSWORD`? A integração Neon fornece a conexão do **proprietário** do banco, que
-ignora as regras de acesso por linha (RLS). Com `APP_DB_PASSWORD`, o PsiDia cria o papel
-`psidia_app`, sem privilégios, e passa a usá-lo. Se a aplicação for configurada por engano para usar o
-proprietário, ela **se recusa a iniciar** e registra o motivo nos logs.
-
-## 5. Deploy
-
-Clique em **Deploy** (ou, em **Deployments**, use **Redeploy** no último deploy). Na primeira
-requisição, o app aplica as migrações, cria o papel seguro e o administrador inicial. Confira em
-**Logs**: “Papel da aplicação criado”, “Migração aplicada…” e “Administrador inicial criado…”.
-
-## 6. Primeiro acesso
-
-1. Abra `https://<seu-projeto>.vercel.app`, entre com o `ADMIN_EMAIL` e a senha provisória e defina
-   a senha definitiva.
-2. Em **Environment Variables**, **apague** `ADMIN_SENHA_INICIAL`, `ADMIN_EMAIL` e `ADMIN_NOME` e faça um Redeploy.
-3. Siga o checklist de `PRODUCAO.md`: dados da instituição, usuários e permissões, catálogo CID,
-   escalas e política de retenção.
-4. Instale nos aparelhos: Android (Chrome › ⋮ › Instalar app) ou iPhone/iPad (Safari › Compartilhar ›
-   Adicionar à Tela de Início).
+| `DATA_ENCRYPTION_KEY` | Guardar a chave de cifragem fora do banco (32 bytes em base64). Defina **antes** do primeiro uso: trocar depois torna ilegíveis as observações já cifradas. |
+| `APP_DB_PASSWORD` | Usar uma senha própria para o papel `psidia_app`. |
 
 ## Observações
 
-- **Atualizações:** cada merge no `main` gera um novo deploy. As migrações rodam automaticamente.
-- **Desempenho:** depois de um período sem uso, a primeira requisição leva alguns segundos (a função e
-  o banco Neon “acordam”).
-- **Backup:** o plano Free do Neon tem histórico curto. Exporte semanalmente (o comando `pg_dump` está em
-  `DEPLOY-GRATUITO.md`), usando a URL `DATABASE_URL_UNPOOLED`.
-- **Limites do plano gratuito:** PDF, relatórios e exportações rodam dentro do tempo máximo da função
-  (60 s). Importações de arquivos CID maiores que 4 MB devem ser divididas em partes.
+- **Atualizações:** cada mudança no branch `main` gera um novo deploy, e as migrações rodam sozinhas.
+- **Desempenho:** após um período sem uso, a primeira requisição leva alguns segundos.
+- **Backup:** o plano Free do Neon tem histórico curto. Exporte semanalmente com
+  `pg_dump "<DATABASE_URL_UNPOOLED>" --format=custom --file=psidia.dump` (a URL está em Storage › Neon › .env.local).
+- **Região:** a função roda em São Paulo (`gru1`, em `vercel.json`). Se o banco ficar em outra região,
+  troque para a região correspondente (ex.: `iad1` para US East) para reduzir a latência.

@@ -1,10 +1,55 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Campo, ErroCaixa, useToast } from '../componentes/ui';
 
 export function Login({ expirou }: { expirou?: boolean }) {
+  const [inicial, setInicial] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.get<{ necessaria: boolean }>('/auth/configuracao-inicial').then((r) => setInicial(r.necessaria)).catch(() => setInicial(false));
+  }, []);
+  if (inicial) return <ConfiguracaoInicial />;
+  return <FormLogin expirou={expirou} />;
+}
+
+/** Primeiro acesso após o deploy: cria a conta de administração (somente enquanto não houver usuários). */
+function ConfiguracaoInicial() {
+  const { recarregar } = useAuth();
+  const [f, setF] = useState({ nome: '', email: '', senha: '', conf: '' });
+  const [erro, setErro] = useState<unknown>(null);
+  const [enviando, setEnviando] = useState(false);
+  const criar = async (e: FormEvent) => {
+    e.preventDefault();
+    if (f.senha !== f.conf) { setErro(new Error('A confirmação não confere com a senha.')); return; }
+    setEnviando(true); setErro(null);
+    try { await api.post('/auth/configuracao-inicial', { nome: f.nome, email: f.email, senha: f.senha }); await recarregar(); }
+    catch (er) { setErro(er); } finally { setEnviando(false); }
+  };
+  return (
+    <div className="login-pagina">
+      <main className="login-cartao">
+        <div className="marca" style={{ color: 'var(--azul-900)', padding: '0 0 16px' }}>
+          <img className="marca-icone" src="/icone.svg" alt="" aria-hidden />
+          <span>PsiDia<small style={{ color: 'var(--cinza-500)' }}>Configuração inicial</small></span>
+        </div>
+        <h1 style={{ fontSize: '1.3rem' }}>Crie a conta de administração</h1>
+        <p className="mudo pequeno">Este é o primeiro acesso ao PsiDia. A conta criada aqui terá acesso total e poderá cadastrar a equipe.
+          Esta tela só aparece enquanto nenhum usuário existir.</p>
+        <ErroCaixa erro={erro} />
+        <form onSubmit={criar}>
+          <Campo rotulo="Seu nome">{(p) => <input {...p} type="text" autoComplete="name" required value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} />}</Campo>
+          <Campo rotulo="E-mail">{(p) => <input {...p} type="email" autoComplete="username" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Campo>
+          <Campo rotulo="Senha" ajuda="Mínimo de 10 caracteres, com letras e números.">{(p) => <input {...p} type="password" autoComplete="new-password" required value={f.senha} onChange={(e) => setF({ ...f, senha: e.target.value })} />}</Campo>
+          <Campo rotulo="Confirme a senha">{(p) => <input {...p} type="password" autoComplete="new-password" required value={f.conf} onChange={(e) => setF({ ...f, conf: e.target.value })} />}</Campo>
+          <button className="btn grande" style={{ width: '100%' }} disabled={enviando}>{enviando ? 'Criando…' : 'Criar conta e entrar'}</button>
+        </form>
+      </main>
+    </div>
+  );
+}
+
+function FormLogin({ expirou }: { expirou?: boolean }) {
   const { recarregar } = useAuth();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
