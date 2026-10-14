@@ -50,9 +50,11 @@ function cabecalho(inst: any, titulo: string, ident: string[], periodo: string) 
   ].join('\n');
 }
 
-function rodape(nome: string) {
+function rodape(nome: string, comIA: boolean) {
   return ['', '---', `Profissional responsável: ${nome}`, `Data de emissão: ${fmt(hojeISO())}`, '',
-    '_Documento elaborado com apoio de ferramenta de IA a partir dos registros institucionais e revisado pelo profissional responsável._'].join('\n');
+    comIA
+      ? '_Documento elaborado com apoio de ferramenta de IA a partir dos registros institucionais e revisado pelo profissional responsável._'
+      : '_Documento elaborado pelo profissional responsável a partir dos registros institucionais._'].join('\n');
 }
 
 /** Gera o conteúdo (Markdown) de uma versão — com IA ou um modelo em branco para preenchimento manual. */
@@ -88,7 +90,7 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
     } else {
       corpo = ['## Objetivo do relatório', '', '## Descrição da atividade proposta', '', '## Participação geral do grupo', '', '## Observações gerais', '', '## Pontos para acompanhamento', ''].join('\n');
     }
-    return { conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome), modelo, registros: [] as string[] };
+    return { conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, b.usar_ia), modelo, registros: [] as string[] };
   }
 
   const prep = await tx(req, async (db) => {
@@ -126,7 +128,7 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
       'Síntese evolutiva', 'Pontos para acompanhamento'].map((s) => `## ${s}\n\n`).join('\n');
   }
   return {
-    conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome),
+    conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, b.usar_ia),
     modelo, registros: prep.dados.evolucoes.map((e) => e.id as string),
   };
 }

@@ -1,0 +1,12 @@
+{
+  "name": "reabilita-mais",
+  "private": true,
+  "scripts": {
+    "install:all": "npm --prefix server ci && npm --prefix client ci",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "npm --prefix server start",
+    "migrate": "npm --prefix server run migrate",
+    "test": "npm --prefix server test",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run typecheck"
+  }
+}
