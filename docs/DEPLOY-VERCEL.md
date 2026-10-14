@@ -70,3 +70,13 @@ Em **Settings › Environment Variables** você pode definir:
   `pg_dump "<DATABASE_URL_UNPOOLED>" --format=custom --file=psidia.dump` (a URL está em Storage › Neon › .env.local).
 - **Região:** a função roda em São Paulo (`gru1`, em `vercel.json`). Se o banco ficar em outra região,
   troque para a região correspondente (ex.: `iad1` para US East) para reduzir a latência.
+
+## Root Directory (pasta raiz do projeto)
+
+Na importação, a Vercel pode sugerir `client` como **Root Directory**, porque encontra a interface nessa
+pasta. O PsiDia funciona com as duas opções:
+- **raiz do repositório** (`./`, recomendado) — usa o `vercel.json` da raiz;
+- **`client`** — usa `client/vercel.json`, que instala e compila o projeto inteiro a partir da raiz.
+
+Nesse segundo caso, mantenha ligada a opção **Settings › Build and Deployment › Root Directory ›
+“Include files outside the root directory in the Build Step”** (padrão da Vercel).
