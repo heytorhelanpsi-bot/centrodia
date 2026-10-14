@@ -1,0 +1,45 @@
+# Blueprint do Render — PsiDia no plano gratuito.
+# Uso: Render > New > Blueprint > selecione este repositório. Veja docs/DEPLOY-GRATUITO.md.
+services:
+  - type: web
+    name: psidia
+    runtime: node
+    plan: free
+    region: virginia          # mesma região do banco (Neon aws-us-east-1) para menor latência
+    branch: main
+    buildCommand: npm run install:all && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: APP_DB_ROLE
+        value: psidia_app
+      - key: MIGRAR_AO_INICIAR
+        value: "true"
+      # Sem custos: IA desligada. Os relatórios são compilados automaticamente pelo sistema.
+      - key: AI_ENABLED
+        value: "false"
+      # Chave de cifragem gerada pelo Render (32 bytes). Copie e guarde em local seguro.
+      - key: DATA_ENCRYPTION_KEY
+        generateValue: true
+      # Preenchidas por você no painel do Render:
+      - key: DATABASE_URL            # conexão do papel psidia_app (Neon, "pooled")
+        sync: false
+      - key: MIGRATION_DATABASE_URL  # conexão do papel proprietário (Neon, direta)
+        sync: false
+      - key: PUBLIC_URL              # ex.: https://psidia.onrender.com
+        sync: false
+      - key: ADMIN_EMAIL             # primeiro administrador (remova após o primeiro acesso)
+        sync: false
+      - key: ADMIN_SENHA_INICIAL
+        sync: false
+      - key: ADMIN_NOME
+        sync: false
