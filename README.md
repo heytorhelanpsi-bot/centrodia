@@ -71,7 +71,7 @@ npm --prefix server run dev
 npm --prefix client run dev
 ```
 
-**Deploy gratuito:** na **Vercel + Neon** ([docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)) ou no **Render + Neon** ([docs/DEPLOY-GRATUITO.md](docs/DEPLOY-GRATUITO.md)).
+**Deploy gratuito:** na **Vercel + Neon**, sem variáveis de ambiente — importar, conectar o banco com 1 clique e publicar ([docs/DEPLOY-VERCEL.md](docs/DEPLOY-VERCEL.md)) ou no **Render + Neon** ([docs/DEPLOY-GRATUITO.md](docs/DEPLOY-GRATUITO.md)).
 O app pode ser instalado em celulares e tablets (PWA, com ícone na tela inicial).
 
 Para produção, use `npm run build && npm start` (a API também serve a interface compilada) ou o `Dockerfile`.
@@ -80,7 +80,7 @@ Veja [docs/PRODUCAO.md](docs/PRODUCAO.md).
 ## Testes
 
 ```bash
-npm test             # 45 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
+npm test             # 46 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
 npm run typecheck
 ```
 

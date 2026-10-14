@@ -108,3 +108,46 @@ authRouter.post('/redefinir-senha', limiteLogin, async (req, res) => {
   await registrarAuditoria(uid, 'senha_redefinida', req.ip);
   res.json({ ok: true });
 });
+
+/**
+ * Configuração inicial: enquanto não existir nenhum usuário, permite criar o primeiro administrador
+ * pela tela do app (dispensa variáveis de ambiente no deploy). Depois disso, o endpoint fica bloqueado.
+ */
+authRouter.get('/configuracao-inicial', async (_req, res) => {
+  const r = await pool.query('SELECT NOT EXISTS (SELECT 1 FROM usuarios) AS necessaria');
+  res.json({ necessaria: r.rows[0].necessaria });
+});
+
+authRouter.post('/configuracao-inicial', limiteLogin, async (req, res) => {
+  const b = validar(z.object({
+    nome: z.string().trim().min(2, 'Informe seu nome').max(150),
+    email: z.string().trim().toLowerCase().email('E-mail inválido'),
+    senha: z.string(),
+  }), req.body);
+  const erro = validarSenhaForte(b.senha);
+  if (erro) throw new HttpError(400, erro, [{ campo: 'senha', mensagem: erro }]);
+  const hash = await hashSenha(b.senha);
+  const client = await pool.connect();
+  let id: string;
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(727275)');
+    const existe = await client.query('SELECT 1 FROM usuarios LIMIT 1');
+    if (existe.rowCount) throw new HttpError(409, 'A configuração inicial já foi feita. Entre com seu e-mail e senha.');
+    const r = await client.query(
+      `INSERT INTO usuarios (nome, email, senha_hash, perfil, acesso_todos_assistidos, deve_trocar_senha)
+       VALUES ($1, $2, $3, 'admin', true, false) RETURNING id`, [b.nome, b.email, hash]);
+    id = r.rows[0].id;
+    await client.query(
+      `INSERT INTO auditoria (usuario_id, acao, entidade, entidade_id, ip) VALUES ($1, 'admin_inicial_criado', 'usuario', $2, $3)`,
+      [id, id, req.ip ?? null]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+  await criarSessao(id, req, res);
+  res.status(201).json({ ok: true });
+});
