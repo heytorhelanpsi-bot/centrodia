@@ -264,10 +264,18 @@ export function EvolucaoDetalhe() {
         <div className="acoes">
           <EtiquetaStatus s={e.status} />{e.versao > 1 && <span className="tag azul">Versão {e.versao}</span>}
           {e.status === 'rascunho' && e.profissional_id === usuario!.id && !e.atividade_coletiva_id && <Link className="btn" to={`/evolucoes/${e.id}/editar`}>Continuar rascunho</Link>}
-          {podeCorrigir && <Link className="btn sec" to={`/evolucoes/${e.id}/corrigir`}>Registrar correção</Link>}
+          {podeCorrigir && !e.atividade_coletiva_id && <Link className="btn" to={`/registro/${e.id}`}>Editar ou excluir</Link>}
+          {podeCorrigir && <Link className="btn sec" to={`/evolucoes/${e.id}/corrigir`}>{e.atividade_coletiva_id ? 'Registrar correção' : 'Correção detalhada'}</Link>}
           <Link className="btn sec" to={`/assistidos/${e.assistido_id}`}>Ficha do assistido</Link>
         </div>
       </div>
+      {e.status === 'excluida' && (
+        <div className="aviso atencao" role="status">
+          <strong>Registro excluído</strong> em {dataHora(e.excluida_em)}. Motivo: {e.motivo_exclusao}.
+          Ele não aparece nas listas nem nos relatórios e é mantido apenas para auditoria.
+        </div>
+      )}
+      {e.tipo === 'individual' && e.participacao === 'nao_realizada' && <div className="aviso info"><strong>Falta:</strong> o assistido não compareceu.</div>}
       <div className="grade grade-2">
         <div className="cartao">
           <h2>Atividades</h2>

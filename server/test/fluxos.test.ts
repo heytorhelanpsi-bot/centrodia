@@ -407,3 +407,52 @@ describe('rotina por turno e dia', () => {
     expect((await prof.get('/api/rotina/resumo')).body.dias).toEqual([1, 3, 5]);
   });
 });
+
+describe('faltas, edição e exclusão de registros', () => {
+  it('registra falta, corrige a data e exclui com motivo, mantendo a auditoria', async () => {
+    const a = (await prof.post('/api/assistidos', novoAssistido({ turno_habitual: 'manha', dias_atendimento: [1, 3, 5] }))).body;
+    const l = (await prof.get('/api/rotina?turno=manha&dia=3')).body;
+    // Falta: participação "não realizada", sem atividades nem marcações.
+    const falta = await prof.post('/api/evolucoes', { assistido_id: a.id, data: l.data, turno: 'manha', participacao: 'nao_realizada',
+      texto_evolucao: 'Faltou: consulta médica.', finalizar: true });
+    expect(falta.status).toBe(201);
+    let item = (await prof.get(`/api/rotina?turno=manha&dia=3&data=${l.data}`)).body.assistidos.find((x: any) => x.id === a.id);
+    expect(item.situacao).toBe('falta');
+    const rel = await prof.post('/api/relatorios', { tipo: 'mensal', assistido_id: a.id, periodo_inicio: '2020-01-01', periodo_fim: hoje(), modo: 'automatico' });
+    const txt: string = (await prof.get(`/api/relatorios/${rel.body.id}`)).body.versoes[0].conteudo;
+    expect(txt).toContain('Faltas registradas: 1');
+
+    // Registro com a data errada: a correção muda a data e guarda o histórico.
+    const ind = await indicadores(prof);
+    const ev = (await prof.post('/api/evolucoes', { assistido_id: a.id, data: l.data, turno: 'tarde', finalizar: true,
+      avaliacoes: [{ indicador_id: ind.foco.id, valor: 2 }] })).body;
+    const outraData = (await prof.get('/api/rotina?turno=manha&dia=1')).body.data;
+    const cor = await prof.post(`/api/evolucoes/${ev.id}/correcoes`, { assistido_id: a.id, data: outraData, turno: 'manha',
+      avaliacoes: [{ indicador_id: ind.foco.id, valor: 3 }], motivo: 'Data e turno lançados errado' });
+    expect(cor.status).toBe(200);
+    const det = (await prof.get(`/api/evolucoes/${ev.id}`)).body;
+    expect(det.data).toBe(outraData);
+    expect(det.turno).toBe('manha');
+    expect(det.correcoes).toHaveLength(1);
+
+    // Exclusão: exige motivo e permissão; o registro sai das listas, mas continua no banco e na auditoria.
+    expect((await prof.post(`/api/evolucoes/${falta.body.id}/excluir`, { motivo: 'x' })).status).toBe(400);
+    expect((await consulta.post(`/api/evolucoes/${falta.body.id}/excluir`, { motivo: 'Lançado por engano' })).status).toBe(403);
+    expect((await prof.post(`/api/evolucoes/${falta.body.id}/excluir`, { motivo: 'Lançado no assistido errado' })).status).toBe(200);
+    expect((await prof.post(`/api/evolucoes/${falta.body.id}/excluir`, { motivo: 'Lançado no assistido errado' })).status).toBe(409);
+    item = (await prof.get(`/api/rotina?turno=manha&dia=3&data=${l.data}`)).body.assistidos.find((x: any) => x.id === a.id);
+    expect(item.situacao).toBe('pendente');
+    const hist = (await prof.get(`/api/assistidos/${a.id}/historico`)).body;
+    expect(hist.evolucoes.some((e: any) => e.id === falta.body.id)).toBe(false);
+    expect(hist.correcoes.some((c: any) => c.evolucao_id === falta.body.id && c.motivo.startsWith('Exclusão'))).toBe(true);
+    const ex = (await prof.get(`/api/evolucoes/${falta.body.id}`)).body;
+    expect(ex.status).toBe('excluida');
+    expect(ex.motivo_exclusao).toBe('Lançado no assistido errado');
+    expect((await prof.post(`/api/evolucoes/${falta.body.id}/correcoes`, { assistido_id: a.id, data: l.data, turno: 'manha',
+      participacao: 'nao_realizada', motivo: 'Tentativa de reverter' })).status).toBe(409);
+    // O banco recusa reverter a exclusão mesmo contornando a API.
+    await expect(owner.query(`UPDATE evolucoes SET status = 'finalizada' WHERE id = $1`, [falta.body.id])).rejects.toThrow(/excluído/);
+    const aud = await owner.query(`SELECT 1 FROM auditoria WHERE acao = 'evolucao_excluida' AND entidade_id = $1`, [falta.body.id]);
+    expect(aud.rowCount).toBe(1);
+  });
+});

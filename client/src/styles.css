@@ -113,6 +113,17 @@ p { margin: 0 0 8px; }
 .ficha { display: flex; gap: 14px; align-items: flex-start; }
 .anamnese { background: var(--cinza-100); border-radius: 8px; padding: 10px; margin-top: 6px; }
 
+.linha-assistido { display: flex; gap: 8px; align-items: stretch; }
+.linha-assistido .item-assistido { flex: 1; min-width: 0; }
+.botao-falta { align-self: center; color: var(--vermelho-700); }
+.item-assistido.falta { background: #fffafa; }
+.presenca { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.presenca button { min-height: 52px; border-radius: 12px; border: 2px solid var(--cinza-300); background: #fff; font: inherit; font-weight: 700; cursor: pointer; color: var(--cinza-700); }
+.presenca button.ativo { border-color: var(--verde-700); background: var(--verde-100); color: var(--verde-700); }
+.presenca button.ativo.falta { border-color: var(--vermelho-700); background: var(--vermelho-100); color: var(--vermelho-700); }
+.destaque-edicao { border-color: #f0d38a; background: #fffdf5; }
+.destaque-exclusao { border-color: #e9b4b0; background: #fff8f7; }
+
 /* Marcação de comportamentos */
 .comportamentos { display: grid; gap: 8px; }
 .comportamento { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px;
