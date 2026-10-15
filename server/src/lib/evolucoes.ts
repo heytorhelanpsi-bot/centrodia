@@ -44,11 +44,11 @@ export type EvolucaoPayload = z.infer<typeof evolucaoSchema>;
 export async function validarFinalizacao(db: Db, p: z.infer<typeof conteudoEvolucaoSchema> & { tipo?: string }) {
   const erros: { campo: string; mensagem: string }[] = [];
   const ausente = p.participacao === 'nao_realizada';
-  if (!ausente && p.atividades.length === 0 && p.tipo !== 'participacao_coletiva') {
-    erros.push({ campo: 'atividades', mensagem: 'Selecione ao menos uma atividade realizada.' });
-  }
-  if (!p.texto_evolucao || p.texto_evolucao.trim().length < 15) {
-    erros.push({ campo: 'texto_evolucao', mensagem: 'Descreva a evolução do atendimento (mínimo de 15 caracteres).' });
+  // Registro simplificado: basta uma atividade, uma marcação de comportamento ou uma observação.
+  const temConteudo = p.atividades.length > 0 || p.avaliacoes.some((a) => a.valor !== null)
+    || (p.texto_evolucao?.trim().length ?? 0) >= 3 || p.tipo === 'participacao_coletiva';
+  if (!ausente && !temConteudo) {
+    erros.push({ campo: 'registro', mensagem: 'Marque ao menos uma atividade ou um comportamento, ou escreva uma observação.' });
   }
   if (p.avaliacoes.length) {
     const ids = p.avaliacoes.map((a) => a.indicador_id);

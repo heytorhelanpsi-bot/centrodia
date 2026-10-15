@@ -13,8 +13,9 @@ com IA, com revisão humana obrigatória.
 
 | Módulo | O que faz |
 |---|---|
-| **Dashboard** | Assistidos ativos, previstos do dia (pela agenda), registrados e pendentes, individuais × grupo, distribuição por turno, evoluções recentes e alertas de rascunhos. Filtros por data, turno e profissional. Não mostra dados clínicos. |
-| **Assistidos** | Cadastro com código interno automático (PD-00001), idade calculada, vários diagnósticos/CID (busca no catálogo ou inserção manual autorizada, com a situação documental de cada um), dias e turno, observações restritas **cifradas**. Busca, filtros, arquivamento sem perda de histórico e bloqueio de duplicidade (nome normalizado + data de nascimento). |
+| **Início (registro do dia)** | Dois cartões, **Manhã** e **Tarde** → dias de funcionamento (padrão: segunda, quarta e sexta; configurável) → lista dos assistidos daquele turno e dia, com a situação de cada um (registrar, em andamento, registrado) → **registro rápido**: atividades realizadas, marcação de comportamentos de 0 a 5 (atenção, foco, engajamento, agressividade…, com “–” para não avaliado e opção de **adicionar novos comportamentos** na hora) e observações. Tudo alimenta os relatórios. |
+| **Painel do dia** | (Em Mais) números do dia, pendências, individuais × grupo e registros recentes. |
+| **Assistidos** | Cadastro simples com os campos obrigatórios **nome, idade, CID e anamnese** (a data de nascimento é opcional), turno e dias de frequência, código interno automático (PD-00001) e observações restritas **cifradas** (opcional). Busca, arquivamento sem perda de histórico e aviso de duplicidade. |
 | **Registrar evolução** | Formulário em seções: identificação, checklist de atividades (com “Adicionar nova atividade”), indicadores 0–5 com “Não avaliado” separado do 0, descrição de cada nível e observação por indicador, evolução e campos complementares. Botões: salvar rascunho, salvar, salvar e registrar a próxima, salvar e gerar análise com IA, cancelar. |
 | **Correções** | Registros finalizados não podem ser alterados sem registro. Correções exigem motivo e guardam as versões anterior e nova (com responsável e data). Isso é garantido **no banco de dados**. |
 | **Atendimentos em grupo** | O evento é registrado uma vez, com seleção múltipla de participantes (previstos do dia/turno, filtros e busca) e ausentes. Cada participante tem seu próprio registro, com participação, apoio, indicadores e evolução. A “avaliação comum” exige revisão individual, e evoluções idênticas são recusadas. Cada pessoa recebe uma evolução vinculada ao evento. |
@@ -80,7 +81,7 @@ Veja [docs/PRODUCAO.md](docs/PRODUCAO.md).
 ## Testes
 
 ```bash
-npm test             # 46 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
+npm test             # 49 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
 npm run typecheck
 ```
 

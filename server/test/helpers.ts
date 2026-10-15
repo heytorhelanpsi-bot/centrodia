@@ -37,7 +37,8 @@ export function novoAssistido(extra: object = {}) {
   nomeSeq++;
   return {
     nome_completo: `Pessoa Teste ${nomeSeq} ${Math.random().toString(36).slice(2, 8)} Silvestre`, data_nascimento: '2010-05-20', turno_habitual: 'manha',
-    dias_atendimento: [1, 3], diagnosticos: [], ...extra,
+    dias_atendimento: [1, 3], anamnese: 'Anamnese de teste: histórico de desenvolvimento e objetivos.',
+    diagnosticos: [{ descricao: 'Diagnóstico de teste', cid_codigo: 'F84.0', situacao: 'documentado_prontuario' }], ...extra,
   };
 }
 

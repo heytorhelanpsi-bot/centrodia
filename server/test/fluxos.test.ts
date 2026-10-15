@@ -92,11 +92,33 @@ describe('cadastro de assistidos', () => {
     expect(raw.rows[0].observacoes_restritas_cifradas).not.toContain('auditivo');
   });
 
+  it('exige nome, idade, CID e anamnese; aceita idade sem data de nascimento', async () => {
+    const base = novoAssistido();
+    const { data_nascimento: _dn, ...semData } = base;
+    const vazio = await prof.post('/api/assistidos', { nome_completo: 'Sem Dados Nenhum' });
+    expect(vazio.status).toBe(400);
+    const campos = vazio.body.detalhes.map((d: any) => d.campo);
+    expect(campos).toEqual(expect.arrayContaining(['anamnese', 'idade', 'diagnosticos']));
+    expect((await prof.post('/api/assistidos', { ...semData, diagnosticos: [] })).status).toBe(400);
+    const r = await prof.post('/api/assistidos', { ...semData, idade: 34 });
+    expect(r.status).toBe(201);
+    const det = (await prof.get(`/api/assistidos/${r.body.id}`)).body;
+    expect(det.idade).toBe(34);
+    expect(det.data_nascimento).toBeNull();
+    expect(det.anamnese).toContain('Anamnese de teste');
+    // Sem data de nascimento, o mesmo nome é recusado como possível duplicidade.
+    expect((await prof.post('/api/assistidos', { ...semData, idade: 20 })).status).toBe(409);
+    // Editar sem mudar a idade mantém a referência original.
+    expect((await prof.put(`/api/assistidos/${r.body.id}`, { ...semData, idade: 34, anamnese: 'Anamnese revisada com novos dados.' })).status).toBe(200);
+    const ref = await owner.query('SELECT idade_informada, idade_informada_em FROM assistidos WHERE id = $1', [r.body.id]);
+    expect(ref.rows[0].idade_informada).toBe(34);
+  });
+
   it('rejeita CID fora do catálogo e aceita após inserção autorizada', async () => {
     const d = novoAssistido({ diagnosticos: [{ descricao: 'Teste', cid_codigo: 'F99.9', situacao: 'documentado_prontuario' }] });
     expect((await prof.post('/api/assistidos', d)).status).toBe(400);
-    expect((await prof.post('/api/cid', { codigo: 'F99.9', descricao: 'Teste' })).status).toBe(403);
-    expect((await admin.post('/api/cid', { codigo: 'F99.9', descricao: 'Código de teste' })).status).toBe(201);
+    expect((await consulta.post('/api/cid', { codigo: 'F99.9', descricao: 'Teste' })).status).toBe(403);
+    expect((await prof.post('/api/cid', { codigo: 'F99.9', descricao: 'Código de teste' })).status).toBe(201);
     expect((await prof.post('/api/assistidos', d)).status).toBe(201);
   });
 
@@ -176,10 +198,10 @@ describe('evolução individual', () => {
     const rasc = await prof.post('/api/evolucoes', base);
     expect(rasc.status).toBe(201);
     expect(rasc.body.status).toBe('rascunho');
-    // Finalizar sem texto de evolução falha com mensagem clara.
-    const f1 = await prof.put(`/api/evolucoes/${rasc.body.id}`, { ...base, finalizar: true });
+    // Finalizar um registro vazio (sem atividade, marcação ou observação) falha com mensagem clara.
+    const f1 = await prof.put(`/api/evolucoes/${rasc.body.id}`, { ...base, atividades: [], avaliacoes: [], finalizar: true });
     expect(f1.status).toBe(400);
-    expect(f1.body.detalhes[0].campo).toBe('texto_evolucao');
+    expect(f1.body.detalhes[0].campo).toBe('registro');
     const f2 = await prof.put(`/api/evolucoes/${rasc.body.id}`, { ...base, texto_evolucao: 'Participou da musicoterapia acompanhando o ritmo com apoio.', finalizar: true });
     expect(f2.status).toBe(200);
     const det = (await prof.get(`/api/evolucoes/${rasc.body.id}`)).body;
@@ -339,5 +361,49 @@ describe('dashboard, indicadores e exportação', () => {
     expect(r.status).toBe(200);
     expect(r.body.length).toBeGreaterThan(5);
     await expect(owner.query(`UPDATE auditoria SET acao = 'x' WHERE id = $1`, [r.body[0].id])).rejects.toThrow(/imutável/);
+  });
+});
+
+describe('rotina por turno e dia', () => {
+  it('lista os assistidos do turno e do dia, com a situação do registro', async () => {
+    const res = (await prof.get('/api/rotina/resumo')).body;
+    expect(res.dias).toEqual([1, 3, 5]);
+    expect(res.turnos.manha['1'].previstos).toBeGreaterThan(0);
+    const a = (await prof.post('/api/assistidos', novoAssistido({ turno_habitual: 'tarde', dias_atendimento: [5] }))).body;
+    const l = (await prof.get('/api/rotina?turno=tarde&dia=5')).body;
+    const item = l.assistidos.find((x: any) => x.id === a.id);
+    expect(item.situacao).toBe('pendente');
+    expect(item.cids).toEqual(['F84.0']);
+    expect(new Date(`${l.data}T12:00:00`).getDay()).toBe(5);
+    expect((await prof.get('/api/rotina?turno=manha&dia=5')).body.assistidos.some((x: any) => x.id === a.id)).toBe(false);
+    expect((await prof.get('/api/rotina?turno=tarde&dia=1')).body.assistidos.some((x: any) => x.id === a.id)).toBe(false);
+    // Registro rápido: só marcações de comportamento, sem texto, já pode ser finalizado.
+    const ind = await indicadores(prof);
+    const ev = await admin.post('/api/evolucoes', { assistido_id: a.id, data: l.data, turno: 'tarde', finalizar: true,
+      avaliacoes: [{ indicador_id: ind.atencao.id, valor: 3 }] });
+    expect(ev.status).toBe(201);
+    const depois = (await prof.get(`/api/rotina?turno=tarde&dia=5&data=${l.data}`)).body;
+    expect(depois.assistidos.find((x: any) => x.id === a.id).situacao).toBe('registrado');
+    // O relatório automático usa o registro rápido e a anamnese do cadastro.
+    const rel = await admin.post('/api/relatorios', { tipo: 'individual_evolucao', assistido_id: a.id, periodo_inicio: '2020-01-01',
+      periodo_fim: hoje(), modo: 'automatico', incluir_diagnosticos: true });
+    expect(rel.status).toBe(201);
+    const txt: string = (await admin.get(`/api/relatorios/${rel.body.id}`)).body.versoes[0].conteudo;
+    expect(txt).toContain('Anamnese de teste');
+    expect(txt).toContain('Atenção');
+  });
+
+  it('permite acrescentar comportamentos durante o registro e configurar os dias', async () => {
+    const r = await prof.post('/api/indicadores', { nome: 'Autorregulação', tipo: 'positivo' });
+    expect(r.status).toBe(201);
+    const ind = await indicadores(prof);
+    const novo = Object.values(ind).find((i: any) => i.nome === 'Autorregulação') as any;
+    expect(novo.maximo).toBe(5);
+    expect(novo.niveis).toHaveLength(6);
+    expect((await prof.post('/api/indicadores', { nome: 'autorregulação', tipo: 'positivo' })).status).toBe(409);
+    expect((await consulta.post('/api/indicadores', { nome: 'Outro', tipo: 'positivo' })).status).toBe(403);
+    expect((await prof.put('/api/config/rotina', { dias: [2, 4] })).status).toBe(403);
+    expect((await admin.put('/api/config/rotina', { dias: [5, 1, 3] })).status).toBe(200);
+    expect((await prof.get('/api/rotina/resumo')).body.dias).toEqual([1, 3, 5]);
   });
 });

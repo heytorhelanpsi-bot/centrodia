@@ -229,7 +229,7 @@ export function SecaoTextos({ conteudo, setConteudo, erro, compacto }: {
   const [extras, setExtras] = useState(CAMPOS_TEXTO.some((c) => (conteudo as any)[c.chave]));
   return (
     <div>
-      <Campo rotulo="Evolução do atendimento — observações do profissional" obrigatorio erro={erro} ajuda="Obrigatório para finalizar o registro.">
+      <Campo rotulo="Observações do profissional" erro={erro} ajuda="Para finalizar, registre ao menos uma atividade, um comportamento ou uma observação.">
         {(p) => <textarea {...p} className={compacto ? '' : 'amplo'} placeholder={ORIENTACAO_EVOLUCAO} value={conteudo.texto_evolucao}
           onChange={(e) => setConteudo({ ...conteudo, texto_evolucao: e.target.value })} />}
       </Campo>

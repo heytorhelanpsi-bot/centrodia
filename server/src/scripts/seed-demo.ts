@@ -43,8 +43,10 @@ await db.query('BEGIN');
 const ids: string[] = [];
 for (const p of pessoas) {
   const r = await db.query(
-    `INSERT INTO assistidos (nome_completo, nome_busca, data_nascimento, turno_habitual, exemplo, criado_por)
-     VALUES ($1,$2,$3,$4,true,$5) RETURNING id`, [p.nome, normalizarNome(p.nome), p.nasc, p.turno, uid]);
+    `INSERT INTO assistidos (nome_completo, nome_busca, data_nascimento, turno_habitual, anamnese, exemplo, criado_por)
+     VALUES ($1,$2,$3,$4,$5,true,$6) RETURNING id`,
+    [p.nome, normalizarNome(p.nome), p.nasc, p.turno,
+      '[EXEMPLO] Anamnese fictícia para demonstração: histórico de desenvolvimento, rotina familiar e objetivos de acompanhamento.', uid]);
   ids.push(r.rows[0].id);
   for (const d of p.dias) await db.query('INSERT INTO assistido_agenda VALUES ($1,$2)', [r.rows[0].id, d]);
   await db.query(

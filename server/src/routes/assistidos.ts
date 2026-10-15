@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { exigir, tem, tx } from '../lib/auth.js';
 import { auditar } from '../lib/auditoria.js';
-import { HttpError, calcularIdade, cifrar, decifrar, normalizarNome } from '../lib/util.js';
+import { HttpError, cifrar, decifrar, hojeISO, idadeDe, normalizarNome } from '../lib/util.js';
 import { dataISO, validar } from '../lib/validacao.js';
 import type { Db } from '../db/pool.js';
 
@@ -15,19 +15,38 @@ const diagnosticoSchema = z.object({
   fonte_documental: z.string().trim().max(500).nullish().transform((v) => v || null),
 });
 
+/** Campos obrigatórios: nome, idade (ou data de nascimento), ao menos um CID e a anamnese. */
 const assistidoSchema = z.object({
   nome_completo: z.string().trim().min(3, 'Informe o nome completo').max(200),
-  data_nascimento: dataISO.refine((v) => v <= new Date().toISOString().slice(0, 10), 'Data no futuro'),
-  turno_habitual: z.enum(['manha', 'tarde', 'ambos']),
+  idade: z.coerce.number({ message: 'Informe a idade' }).int('Idade em anos completos').min(0).max(120).nullish(),
+  data_nascimento: dataISO.refine((v) => v <= new Date().toISOString().slice(0, 10), 'Data no futuro').nullish()
+    .or(z.literal('').transform(() => null)),
+  anamnese: z.string().trim().max(20000).default(''),
+  turno_habitual: z.enum(['manha', 'tarde', 'ambos']).default('ambos'),
   dias_atendimento: z.array(z.number().int().min(1).max(6)).max(6).default([]),
   diagnosticos: z.array(diagnosticoSchema).max(30).default([]),
   observacoes_restritas: z.string().max(10000).nullish(),
+}).superRefine((b, ctx) => {
+  // Validados aqui (e não no campo) para que todos os obrigatórios ausentes sejam apontados de uma vez.
+  if (b.anamnese.length < 10) ctx.addIssue({ code: 'custom', message: 'Descreva a anamnese (ao menos algumas linhas)', path: ['anamnese'] });
+  if (b.idade == null && !b.data_nascimento) ctx.addIssue({ code: 'custom', message: 'Informe a idade', path: ['idade'] });
+  if (!b.diagnosticos.some((d) => d.cid_codigo)) ctx.addIssue({ code: 'custom', message: 'Informe ao menos um CID', path: ['diagnosticos'] });
 });
+
+/** Idade guardada: a data de nascimento prevalece; sem ela, guarda a idade informada e a data da informação. */
+function colunasIdade(b: z.infer<typeof assistidoSchema>, atual?: any) {
+  if (b.data_nascimento) return { data_nascimento: b.data_nascimento, idade_informada: null, idade_informada_em: null };
+  // Mantém a referência original se a idade não mudou (evita "rejuvenescer" o cadastro a cada edição).
+  if (atual && !atual.data_nascimento && idadeDe(atual) === b.idade) {
+    return { data_nascimento: null, idade_informada: atual.idade_informada, idade_informada_em: atual.idade_informada_em };
+  }
+  return { data_nascimento: null, idade_informada: b.idade!, idade_informada_em: hojeISO() };
+}
 
 function formatar(a: any, incluirRestritas: boolean) {
   return {
     id: a.id, codigo: a.codigo, nome_completo: a.nome_completo, data_nascimento: a.data_nascimento,
-    idade: calcularIdade(a.data_nascimento), turno_habitual: a.turno_habitual, status: a.status,
+    idade: idadeDe(a), anamnese: a.anamnese ?? '', turno_habitual: a.turno_habitual, status: a.status,
     exemplo: a.exemplo, criado_em: a.criado_em, criado_por_nome: a.criado_por_nome,
     atualizado_em: a.atualizado_em, arquivado_em: a.arquivado_em, anonimizado_em: a.anonimizado_em,
     dias_atendimento: a.dias_atendimento ?? [],
@@ -77,6 +96,15 @@ assistidosRouter.get('/verificar-duplicidade', exigir('assistidos.editar'), asyn
   res.json(rows);
 });
 
+/** Sem data de nascimento, o índice único não protege: recusa o mesmo nome quando um dos cadastros não tem a data. */
+async function verificarDuplicidade(db: Db, nome: string, dataNascimento: string | null, ignorar: string | null) {
+  const r = await db.query(
+    `SELECT codigo FROM assistidos WHERE nome_busca = $1 AND anonimizado_em IS NULL AND ($3::uuid IS NULL OR id <> $3)
+        AND ($2::date IS NULL OR data_nascimento IS NULL) LIMIT 1`,
+    [normalizarNome(nome), dataNascimento, ignorar]);
+  if (r.rowCount) throw new HttpError(409, `Já existe um cadastro com este nome (${r.rows[0].codigo}). Verifique antes de continuar.`);
+}
+
 async function carregar(db: Db, id: string) {
   const r = await db.query(`${SELECT_BASE} WHERE a.id = $1`, [id]);
   if (!r.rowCount) throw new HttpError(404, 'Assistido não encontrado ou sem permissão de acesso.');
@@ -122,11 +150,15 @@ assistidosRouter.post('/', exigir('assistidos.editar'), async (req, res) => {
   if (b.observacoes_restritas && !tem(req, 'assistidos.observacoes_restritas')) {
     throw new HttpError(403, 'Sem permissão para registrar observações restritas.');
   }
+  const idade = colunasIdade(b);
   const criado = await tx(req, async (db) => {
+    await verificarDuplicidade(db, b.nome_completo, idade.data_nascimento, null);
     const r = await db.query(
-      `INSERT INTO assistidos (nome_completo, nome_busca, data_nascimento, turno_habitual, observacoes_restritas_cifradas, criado_por, atualizado_por)
-       VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING id, codigo`,
-      [b.nome_completo, normalizarNome(b.nome_completo), b.data_nascimento, b.turno_habitual, cifrar(b.observacoes_restritas), req.usuario!.id]);
+      `INSERT INTO assistidos (nome_completo, nome_busca, data_nascimento, idade_informada, idade_informada_em, anamnese, turno_habitual,
+          observacoes_restritas_cifradas, criado_por, atualizado_por)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) RETURNING id, codigo`,
+      [b.nome_completo, normalizarNome(b.nome_completo), idade.data_nascimento, idade.idade_informada, idade.idade_informada_em,
+        b.anamnese, b.turno_habitual, cifrar(b.observacoes_restritas), req.usuario!.id]);
     const { id } = r.rows[0];
     await salvarAgenda(db, id, b.dias_atendimento);
     await salvarDiagnosticos(db, req, id, b.diagnosticos);
@@ -145,16 +177,21 @@ assistidosRouter.put('/:id', exigir('assistidos.editar'), async (req, res) => {
     const atual = await carregar(db, id);
     if (atual.a.anonimizado_em) throw new HttpError(409, 'Cadastro anonimizado não pode ser editado.');
     const obs = b.manter_observacoes_restritas ? atual.a.observacoes_restritas_cifradas : cifrar(b.observacoes_restritas);
+    const idade = colunasIdade(b, atual.a);
+    await verificarDuplicidade(db, b.nome_completo, idade.data_nascimento, id);
     const r = await db.query(
-      `UPDATE assistidos SET nome_completo = $2, nome_busca = $3, data_nascimento = $4, turno_habitual = $5,
-          observacoes_restritas_cifradas = $6, atualizado_em = now(), atualizado_por = $7 WHERE id = $1`,
-      [id, b.nome_completo, normalizarNome(b.nome_completo), b.data_nascimento, b.turno_habitual, obs, req.usuario!.id]);
+      `UPDATE assistidos SET nome_completo = $2, nome_busca = $3, data_nascimento = $4, idade_informada = $5, idade_informada_em = $6,
+          anamnese = $7, turno_habitual = $8, observacoes_restritas_cifradas = $9, atualizado_em = now(), atualizado_por = $10 WHERE id = $1`,
+      [id, b.nome_completo, normalizarNome(b.nome_completo), idade.data_nascimento, idade.idade_informada, idade.idade_informada_em,
+        b.anamnese, b.turno_habitual, obs, req.usuario!.id]);
     if (!r.rowCount) throw new HttpError(403, 'Sem permissão para editar este cadastro.');
     await salvarAgenda(db, id, b.dias_atendimento);
     await salvarDiagnosticos(db, req, id, b.diagnosticos);
-    const alterados = ['nome_completo', 'data_nascimento', 'turno_habitual'].filter((k) => String(atual.a[k]) !== String((b as any)[k]));
+    const novos: Record<string, unknown> = { ...b, ...idade };
+    const alterados = ['nome_completo', 'data_nascimento', 'idade_informada', 'turno_habitual'].filter((k) => String(atual.a[k] ?? '') !== String(novos[k] ?? ''));
+    if ((atual.a.anamnese ?? '') !== b.anamnese) alterados.push('anamnese');
     await auditar(db, req, 'assistido_atualizado', 'assistido', id, {
-      campos_alterados: alterados, anteriores: Object.fromEntries(alterados.map((k) => [k, atual.a[k]])),
+      campos_alterados: alterados, anteriores: Object.fromEntries(alterados.filter((k) => k !== 'anamnese').map((k) => [k, atual.a[k]])),
       observacoes_restritas_alteradas: obs !== atual.a.observacoes_restritas_cifradas,
     });
   });

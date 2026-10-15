@@ -61,10 +61,10 @@ export const ESQUEMA_ANALISE_LONGITUDINAL = {
   },
 };
 
-export function promptAnaliseEvolucao(ctx: { idade: number; diagnosticos: string[] }, registros: string) {
+export function promptAnaliseEvolucao(ctx: { idade: number | null; diagnosticos: string[] }, registros: string) {
   return `Analise o registro de atendimento abaixo e produza a análise no formato JSON solicitado.
 
-Dados do assistido: idade ${ctx.idade} anos.
+Dados do assistido: idade ${ctx.idade ?? "não informada"} anos.
 ${ctx.diagnosticos.length ? `Diagnósticos registrados:\n${ctx.diagnosticos.map((d) => `- ${d}`).join('\n')}` : 'Diagnósticos: não incluídos nesta solicitação.'}
 
 <registros>
@@ -75,10 +75,10 @@ Em cada lista, escreva itens curtos e factuais. Se não houver informação para
 (e registre a ausência em "lacunas_informacao").`;
 }
 
-export function promptAnaliseLongitudinal(ctx: { idade: number; diagnosticos: string[] }, periodo: string, estat: unknown, registros: string, minObs: number) {
+export function promptAnaliseLongitudinal(ctx: { idade: number | null; diagnosticos: string[] }, periodo: string, estat: unknown, registros: string, minObs: number) {
   return `Analise o histórico do período ${periodo} e produza a análise no formato JSON solicitado.
 
-Dados do assistido: idade ${ctx.idade} anos.
+Dados do assistido: idade ${ctx.idade ?? "não informada"} anos.
 ${ctx.diagnosticos.length ? `Diagnósticos registrados:\n${ctx.diagnosticos.map((d) => `- ${d}`).join('\n')}` : 'Diagnósticos: não incluídos nesta solicitação.'}
 
 Estatísticas descritivas calculadas pelo sistema (use estes números; não recalcule):
@@ -114,13 +114,13 @@ Formato de saída: Markdown simples (títulos com "##", listas com "-", parágra
 identificação do assistido, período ou assinatura — essas seções são inseridas pelo sistema.`;
 
 export function promptRelatorio(args: {
-  tipo: string; objetivo: string | null; periodo: string; idade: number; diagnosticos: string[]; estat: unknown; registros: string; minObs: number;
+  tipo: string; objetivo: string | null; periodo: string; idade: number | null; diagnosticos: string[]; estat: unknown; registros: string; minObs: number;
 }) {
   const t = TIPOS_RELATORIO[args.tipo];
   return `Elabore a minuta do documento "${t.titulo}". Foco: ${t.foco}
 Período analisado: ${args.periodo}.
 Objetivo informado pelo profissional: ${args.objetivo || 'não informado'}.
-Assistido: idade ${args.idade} anos.
+Assistido: idade ${args.idade ?? "não informada"} anos.
 ${args.diagnosticos.length ? `Diagnósticos registrados:\n${args.diagnosticos.map((d) => `- ${d}`).join('\n')}` : 'Diagnósticos: não incluídos neste relatório (não mencione diagnósticos).'}
 
 Escreva exatamente as seções abaixo, nesta ordem, com títulos "##":

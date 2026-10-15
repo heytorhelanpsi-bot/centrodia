@@ -24,6 +24,7 @@ export const TODAS_PERMISSOES: Record<string, string> = {
   'atividades.criar': 'Adicionar novas atividades',
   'config.atividades': 'Configurar atividades',
   'config.indicadores': 'Configurar indicadores e escalas',
+  'indicadores.criar': 'Adicionar comportamentos (parâmetros) durante o registro',
   'usuarios.gerenciar': 'Gerenciar usuários e permissões',
   'auditoria.ver': 'Consultar logs de auditoria',
   'lgpd.gerenciar': 'Atender direitos dos titulares (LGPD)',
@@ -202,11 +203,13 @@ const configSchemas: Record<string, z.ZodType> = {
     cnpj: z.string().trim().max(30).default(''), responsavel_tecnico: z.string().trim().max(200).default(''),
   }),
   ia: z.object({ habilitada: z.boolean(), enviar_nome: z.literal(false).default(false) }),
+  rotina: z.object({ dias: z.array(z.number().int().min(1).max(6)).min(1, 'Escolha ao menos um dia').max(6)
+    .transform((d) => [...new Set(d)].sort()) }),
   retencao: z.object({ descricao: z.string().trim().max(4000), prazo_anos: z.number().int().min(1).max(100).nullable() }),
 };
 
 configRouter.put('/:chave', exigir('usuarios.gerenciar'), async (req, res) => {
-  const chave = validar(z.enum(['instituicao', 'ia', 'retencao']), req.params.chave);
+  const chave = validar(z.enum(['instituicao', 'ia', 'retencao', 'rotina']), req.params.chave);
   const valor = validar(configSchemas[chave], req.body);
   await tx(req, async (db) => {
     await db.query(
@@ -288,12 +291,12 @@ lgpdRouter.post('/assistidos/:id/anonimizar', exigir('lgpd.gerenciar'), async (r
     if (!a.rowCount) throw new HttpError(404, 'Assistido não encontrado.');
     if (a.rows[0].anonimizado_em) throw new HttpError(409, 'Cadastro já anonimizado.');
     if (b.confirmacao_codigo !== a.rows[0].codigo) throw new HttpError(400, 'Código de confirmação não confere.');
-    const ano = a.rows[0].data_nascimento.slice(0, 4);
+    const ano = a.rows[0].data_nascimento?.slice(0, 4);
     await db.query(
-      `UPDATE assistidos SET nome_completo = $2, nome_busca = $3, data_nascimento = $4, observacoes_restritas_cifradas = NULL,
+      `UPDATE assistidos SET nome_completo = $2, nome_busca = $3, data_nascimento = $4, anamnese = NULL, observacoes_restritas_cifradas = NULL,
           status = 'arquivado', arquivado_em = coalesce(arquivado_em, now()), anonimizado_em = now(), atualizado_em = now(), atualizado_por = $5
         WHERE id = $1`,
-      [id, `Titular anonimizado ${a.rows[0].codigo}`, `titular anonimizado ${a.rows[0].codigo.toLowerCase()}`, `${ano}-01-01`, req.usuario!.id]);
+      [id, `Titular anonimizado ${a.rows[0].codigo}`, `titular anonimizado ${a.rows[0].codigo.toLowerCase()}`, ano ? `${ano}-01-01` : null, req.usuario!.id]);
     await auditar(db, req, 'lgpd_anonimizacao', 'assistido', id, { motivo: b.motivo });
   });
   res.json({ ok: true });
