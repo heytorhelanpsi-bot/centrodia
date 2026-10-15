@@ -23,6 +23,18 @@ export function calcularIdade(dataNascimento: string, referencia: Date = new Dat
   return idade;
 }
 
+/**
+ * Idade atual do assistido: pela data de nascimento, quando informada; senão pela idade
+ * informada no cadastro, acrescida dos anos completos desde aquele registro.
+ */
+export function idadeDe(a: { data_nascimento?: string | null; idade_informada?: number | null; idade_informada_em?: string | null },
+  referencia: Date = new Date()): number | null {
+  if (a.data_nascimento) return calcularIdade(a.data_nascimento, referencia);
+  if (a.idade_informada == null) return null;
+  if (!a.idade_informada_em) return a.idade_informada;
+  return a.idade_informada + Math.max(0, calcularIdade(a.idade_informada_em, referencia));
+}
+
 export function hojeISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

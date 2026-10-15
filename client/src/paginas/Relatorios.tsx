@@ -84,7 +84,7 @@ export function NovoRelatorio() {
   const [tipo, setTipo] = useState(sp.get('tipo') ?? 'individual_evolucao');
   const [assistido, setAssistido] = useState<AssistidoResumo | null>(null);
   const [coletivaId, setColetivaId] = useState(sp.get('coletiva') ?? '');
-  const [p, setP] = useState({ periodo_inicio: sp.get('data') ?? diasAtras(30), periodo_fim: sp.get('data') ?? hojeISO(), objetivo: '', incluir_diagnosticos: false, identificacao: 'completa' });
+  const [p, setP] = useState({ periodo_inicio: sp.get('data') ?? diasAtras(30), periodo_fim: sp.get('data') ?? hojeISO(), objetivo: '', incluir_diagnosticos: true, identificacao: 'completa' });
   const [modo, setModo] = useState<'automatico' | 'ia' | 'manual'>('automatico');
   const [selecionar, setSelecionar] = useState(false);
   const [registros, setRegistros] = useState<Set<string>>(new Set());
@@ -141,7 +141,7 @@ export function NovoRelatorio() {
         </div>
         <Campo rotulo="Objetivo do relatório">{(x) => <textarea {...x} style={{ minHeight: 70 }} placeholder="Ex.: subsidiar reunião da equipe multidisciplinar" value={p.objetivo} onChange={(e) => setP({ ...p, objetivo: e.target.value })} />}</Campo>
         <div className="opcoes">
-          {!grupo && <label className="chip"><input type="checkbox" checked={p.incluir_diagnosticos} onChange={(e) => setP({ ...p, incluir_diagnosticos: e.target.checked })} />Incluir diagnósticos registrados</label>}
+          {!grupo && <label className="chip"><input type="checkbox" checked={p.incluir_diagnosticos} onChange={(e) => setP({ ...p, incluir_diagnosticos: e.target.checked })} />Incluir CID e anamnese do cadastro</label>}
           {!grupo && <label className="chip"><input type="checkbox" checked={selecionar} onChange={(e) => setSelecionar(e.target.checked)} />Escolher registros específicos</label>}
         </div>
         <fieldset style={{ marginTop: 14 }}>

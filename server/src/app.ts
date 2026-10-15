@@ -14,6 +14,7 @@ import { evolucoesRouter } from './routes/evolucoes.js';
 import { coletivasRouter } from './routes/coletivas.js';
 import { iaRouter } from './routes/ia.js';
 import { relatoriosRouter } from './routes/relatorios.js';
+import { rotinaRouter } from './routes/rotina.js';
 import { dashboardRouter, exportacaoRouter, historicoRouter } from './routes/painel.js';
 import { auditoriaRouter, configRouter, lgpdRouter, permissoesRouter, usuariosRouter } from './routes/admin.js';
 
@@ -53,6 +54,7 @@ export function criarApp() {
   api.use('/auth', authRouter);
   api.use(exigirLogin, exigirSenhaAtualizada);
   api.use('/dashboard', dashboardRouter);
+  api.use('/rotina', rotinaRouter);
   api.use('/assistidos', historicoRouter);
   api.use('/assistidos', assistidosRouter);
   api.use('/cid', cidRouter);

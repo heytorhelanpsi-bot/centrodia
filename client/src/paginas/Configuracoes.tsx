@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, baixar, qs } from '../api';
 import { useAuth } from '../auth';
-import { PERFIS, data, dataHora } from '../formato';
+import { DIAS, PERFIS, data, dataHora } from '../formato';
 import { Abas, BuscaAssistido, Campo, Carregando, ErroCaixa, errosPorCampo, useCarregar, useConfirmar, useToast, Vazio, type AssistidoResumo } from '../componentes/ui';
 
 type Aba = 'usuarios' | 'permissoes' | 'instituicao' | 'auditoria' | 'lgpd' | 'cid';
@@ -9,7 +9,7 @@ type Aba = 'usuarios' | 'permissoes' | 'instituicao' | 'auditoria' | 'lgpd' | 'c
 export function Configuracoes() {
   const { pode, usuario } = useAuth();
   const abas = [
-    ...(pode('usuarios.gerenciar') ? [{ id: 'usuarios' as Aba, rotulo: 'Usuários' }, { id: 'permissoes' as Aba, rotulo: 'Perfis e permissões' }, { id: 'instituicao' as Aba, rotulo: 'Instituição, IA e retenção' }] : []),
+    ...(pode('usuarios.gerenciar') ? [{ id: 'usuarios' as Aba, rotulo: 'Usuários' }, { id: 'permissoes' as Aba, rotulo: 'Perfis e permissões' }, { id: 'instituicao' as Aba, rotulo: 'Instituição e funcionamento' }] : []),
     ...(pode('auditoria.ver') ? [{ id: 'auditoria' as Aba, rotulo: 'Auditoria' }] : []),
     ...(pode('lgpd.gerenciar') ? [{ id: 'lgpd' as Aba, rotulo: 'LGPD' }] : []),
     ...(pode('cid.inserir_manual') && pode('usuarios.gerenciar') ? [{ id: 'cid' as Aba, rotulo: 'Catálogo CID' }] : []),
@@ -183,9 +183,10 @@ function Instituicao() {
   const [inst, setInst] = useState<any>(null);
   const [ret, setRet] = useState<any>(null);
   const [iaHab, setIaHab] = useState(true);
+  const [dias, setDias] = useState<number[]>([1, 3, 5]);
   const [erroS, setErroS] = useState<unknown>(null);
   const { dados: iaStatus } = useCarregar<{ disponivel: boolean; provedor?: string; modelo?: string }>('/ia/status');
-  useEffect(() => { if (dados) { setInst(dados.instituicao); setRet(dados.retencao); setIaHab(dados.ia?.habilitada !== false); } }, [dados]);
+  useEffect(() => { if (dados) { setInst(dados.instituicao); setRet(dados.retencao); setIaHab(dados.ia?.habilitada !== false); setDias(dados.rotina?.dias ?? [1, 3, 5]); } }, [dados]);
   if (carregando || !inst) return <Carregando />;
   if (erro) return <ErroCaixa erro={erro} />;
   const salvar = async (chave: string, valor: unknown) => {
@@ -206,6 +207,17 @@ function Instituicao() {
           <Campo rotulo="Responsável técnico">{(p) => <input {...p} type="text" value={inst.responsavel_tecnico} onChange={(e) => setInst({ ...inst, responsavel_tecnico: e.target.value })} />}</Campo>
         </div>
         <button className="btn" onClick={() => salvar('instituicao', inst)}>Salvar</button>
+      </div>
+      <div className="cartao">
+        <h2>Dias de funcionamento</h2>
+        <p className="mudo pequeno">Dias exibidos na tela inicial ao escolher o turno.</p>
+        <div className="opcoes">
+          {DIAS.slice(1).map((d, i) => (
+            <label key={d} className="chip"><input type="checkbox" checked={dias.includes(i + 1)}
+              onChange={(e) => setDias(e.target.checked ? [...dias, i + 1].sort() : dias.filter((x) => x !== i + 1))} />{d}</label>
+          ))}
+        </div>
+        <div style={{ marginTop: 10 }}><button className="btn" disabled={!dias.length} onClick={() => salvar('rotina', { dias })}>Salvar</button></div>
       </div>
       <div className="cartao">
         <h2>Inteligência artificial</h2>

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { exigir, tem, tx } from '../lib/auth.js';
 import { auditar } from '../lib/auditoria.js';
-import { HttpError, calcularIdade, hojeISO } from '../lib/util.js';
+import { HttpError, hojeISO, idadeDe } from '../lib/util.js';
 import { dataISO, validar } from '../lib/validacao.js';
 import { chamarIA } from '../ai/cliente.js';
 import { carregarRegistros, contextoAssistido, descreverRegistros, estatisticas, MIN_OBS_TENDENCIA, Pseudonimizador } from '../ai/dados.js';
@@ -115,7 +115,7 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
   if (modo !== 'manual' && !prep.dados.evolucoes.length) throw new HttpError(400, 'Não há evoluções finalizadas no período/seleção para fundamentar o relatório.');
   const a = prep.ctx.a;
   const ident = b.identificacao === 'completa'
-    ? [`Nome: ${a.nome_completo}`, `Código: ${a.codigo}`, `Idade: ${calcularIdade(a.data_nascimento)} anos`]
+    ? [`Nome: ${a.nome_completo}`, `Código: ${a.codigo}`, `Idade: ${idadeDe(a) ?? 'não informada'} anos`]
     : [`Código: ${a.codigo}`];
   if (prep.ctx.diagnosticos.length) ident.push(...prep.ctx.diagnosticos.map((d) => `Diagnóstico registrado: ${d}`));
   ident.push(`Registros considerados: ${prep.dados.evolucoes.length}`);
@@ -141,6 +141,8 @@ async function gerarConteudo(req: any, b: Criar & { instrucoes?: string | null }
       'Comportamentos observados', 'Potencialidades e dificuldades', 'Necessidades de apoio identificadas nos registros',
       'Síntese evolutiva', 'Pontos para acompanhamento'].map((s) => `## ${s}\n\n`).join('\n');
   }
+  // A anamnese do cadastro entra nos relatórios compilados pelo sistema (nunca é enviada à IA).
+  if (modo !== 'ia' && b.incluir_diagnosticos && a.anamnese?.trim()) corpo = `## Anamnese (cadastro)\n\n${a.anamnese.trim()}\n\n` + corpo;
   return {
     conteudo: cabecalho(prep.inst, titulo, ident, periodo) + corpo + rodape(req.usuario.nome, modo),
     modelo, registros: prep.dados.evolucoes.map((e) => e.id as string),

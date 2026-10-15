@@ -82,38 +82,51 @@ export function AssistidoForm() {
   const nav = useNavigate();
   const toast = useToast();
   const existente = useCarregar<any>(id ? `/assistidos/${id}` : null);
-  const [f, setF] = useState({ nome_completo: '', data_nascimento: '', turno_habitual: 'manha', dias_atendimento: [] as number[], observacoes_restritas: '' });
-  const [diags, setDiags] = useState<Diag[]>([]);
+  const { dados: cfg } = useCarregar<any>('/config');
+  const [f, setF] = useState({ nome_completo: '', idade: '', data_nascimento: '', anamnese: '', turno_habitual: 'ambos',
+    dias_atendimento: [] as number[], observacoes_restritas: '' });
+  const [diags, setDiags] = useState<Diag[]>([diagVazio()]);
+  const [comNascimento, setComNascimento] = useState(false);
   const [erro, setErro] = useState<unknown>(null);
   const [salvando, setSalvando] = useState(false);
   const [duplicados, setDuplicados] = useState<any[]>([]);
+  const diasCentro: number[] = cfg?.rotina?.dias ?? [1, 3, 5];
 
   useEffect(() => {
     const a = existente.dados;
     if (!a) return;
-    setF({ nome_completo: a.nome_completo, data_nascimento: a.data_nascimento, turno_habitual: a.turno_habitual,
-      dias_atendimento: a.dias_atendimento, observacoes_restritas: a.observacoes_restritas ?? '' });
-    setDiags(a.diagnosticos);
+    setF({ nome_completo: a.nome_completo, idade: a.idade != null ? String(a.idade) : '', data_nascimento: a.data_nascimento ?? '',
+      anamnese: a.anamnese ?? '', turno_habitual: a.turno_habitual, dias_atendimento: a.dias_atendimento, observacoes_restritas: a.observacoes_restritas ?? '' });
+    setComNascimento(!!a.data_nascimento);
+    setDiags(a.diagnosticos.length ? a.diagnosticos : [diagVazio()]);
   }, [existente.dados]);
+  // Novo cadastro: começa com os dias de funcionamento do centro marcados.
+  useEffect(() => { if (!id && cfg) setF((x) => (x.dias_atendimento.length ? x : { ...x, dias_atendimento: diasCentro })); }, [cfg, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Verificação de duplicidade enquanto digita.
   useEffect(() => {
     if (f.nome_completo.trim().length < 5) { setDuplicados([]); return; }
     const t = setTimeout(() => {
-      api.get(`/assistidos/verificar-duplicidade${qs({ nome: f.nome_completo, data_nascimento: f.data_nascimento || undefined, ignorar: id })}`)
+      api.get(`/assistidos/verificar-duplicidade${qs({ nome: f.nome_completo, data_nascimento: comNascimento ? f.data_nascimento || undefined : undefined, ignorar: id })}`)
         .then(setDuplicados).catch(() => setDuplicados([]));
     }, 400);
     return () => clearTimeout(t);
-  }, [f.nome_completo, f.data_nascimento, id]);
+  }, [f.nome_completo, f.data_nascimento, comNascimento, id]);
 
   const erros = errosPorCampo(erro);
-  const idade = calcIdade(f.data_nascimento);
+  const idadeNasc = comNascimento ? calcIdade(f.data_nascimento) : null;
 
   const salvar = async (e: FormEvent) => {
     e.preventDefault();
     setSalvando(true); setErro(null);
-    const corpo = { ...f, diagnosticos: diags.map((d) => ({ ...d, cid_codigo: d.cid_codigo || null })),
-      observacoes_restritas: f.observacoes_restritas || null, manter_observacoes_restritas: !pode('assistidos.observacoes_restritas') };
+    const corpo = {
+      nome_completo: f.nome_completo, anamnese: f.anamnese, turno_habitual: f.turno_habitual, dias_atendimento: f.dias_atendimento,
+      idade: comNascimento ? null : f.idade === '' ? null : Number(f.idade),
+      data_nascimento: comNascimento ? f.data_nascimento || null : null,
+      diagnosticos: diags.filter((d) => d.cid_codigo || d.descricao.trim())
+        .map((d) => ({ ...d, descricao: d.descricao.trim() || d.cid_descricao || d.cid_codigo || '', cid_codigo: d.cid_codigo || null })),
+      observacoes_restritas: f.observacoes_restritas || null, manter_observacoes_restritas: !pode('assistidos.observacoes_restritas'),
+    };
     try {
       if (id) { await api.put(`/assistidos/${id}`, corpo); toast('ok', 'Cadastro atualizado com sucesso.'); nav(`/assistidos/${id}`); }
       else { const r = await api.post('/assistidos', corpo); toast('ok', `Assistido cadastrado com o código ${r.codigo}.`); nav(`/assistidos/${r.id}`); }
@@ -126,34 +139,67 @@ export function AssistidoForm() {
   return (
     <form onSubmit={salvar} noValidate>
       <div className="cab-pagina"><div><h1>{id ? 'Editar cadastro' : 'Novo assistido'}</h1>
-        <p className="sub">{id ? existente.dados?.codigo : 'O identificador interno é gerado automaticamente.'}</p></div></div>
+        <p className="sub">{id ? existente.dados?.codigo : 'Campos obrigatórios: nome, idade, CID e anamnese.'}</p></div></div>
       <ErroCaixa erro={erro} />
       <div className="cartao">
-        <h2>Identificação</h2>
+        <h2>Dados essenciais</h2>
         <Campo rotulo="Nome completo" obrigatorio erro={erros.nome_completo}>
           {(p) => <input {...p} type="text" autoComplete="off" value={f.nome_completo} onChange={(e) => setF({ ...f, nome_completo: e.target.value })} />}
         </Campo>
         {duplicados.length > 0 && (
           <div className="aviso atencao" role="status">
             <strong>Possível cadastro duplicado:</strong>
-            <ul>{duplicados.map((d) => <li key={d.id}><Link to={`/assistidos/${d.id}`}>{d.nome_completo}</Link> · {d.codigo} · nasc. {data(d.data_nascimento)} {d.status === 'arquivado' && '(arquivado)'}</li>)}</ul>
+            <ul>{duplicados.map((d) => <li key={d.id}><Link to={`/assistidos/${d.id}`}>{d.nome_completo}</Link> · {d.codigo}{d.data_nascimento ? ` · nasc. ${data(d.data_nascimento)}` : ''} {d.status === 'arquivado' && '(arquivado)'}</li>)}</ul>
           </div>
         )}
         <div className="linha-campos">
-          <Campo rotulo="Data de nascimento" obrigatorio erro={erros.data_nascimento} ajuda={idade !== null ? `Idade calculada: ${idade} anos` : undefined}>
-            {(p) => <input {...p} type="date" max={hojeISO()} value={f.data_nascimento} onChange={(e) => setF({ ...f, data_nascimento: e.target.value })} />}
-          </Campo>
-          <Campo rotulo="Turno habitual" obrigatorio>
-            {(p) => (
-              <select {...p} value={f.turno_habitual} onChange={(e) => setF({ ...f, turno_habitual: e.target.value })}>
-                <option value="manha">Manhã</option><option value="tarde">Tarde</option><option value="ambos">Ambos</option>
-              </select>)}
-          </Campo>
+          {comNascimento ? (
+            <Campo rotulo="Data de nascimento" obrigatorio erro={erros.data_nascimento || erros.idade} ajuda={idadeNasc !== null ? `Idade: ${idadeNasc} anos` : undefined}>
+              {(p) => <input {...p} type="date" max={hojeISO()} value={f.data_nascimento} onChange={(e) => setF({ ...f, data_nascimento: e.target.value })} />}
+            </Campo>
+          ) : (
+            <Campo rotulo="Idade (anos)" obrigatorio erro={erros.idade}>
+              {(p) => <input {...p} type="number" min={0} max={120} inputMode="numeric" value={f.idade} onChange={(e) => setF({ ...f, idade: e.target.value })} />}
+            </Campo>
+          )}
+          <div className="campo" style={{ alignSelf: 'end' }}>
+            <button type="button" className="btn-link" onClick={() => setComNascimento(!comNascimento)}>
+              {comNascimento ? 'Informar só a idade' : 'Prefiro informar a data de nascimento'}
+            </button>
+          </div>
         </div>
+
         <fieldset>
-          <legend>Dias de atendimento</legend>
+          <legend>CID <span className="mudo">(obrigatório, ao menos um)</span></legend>
+          {erros.diagnosticos && <p className="erro-campo" role="alert">{erros.diagnosticos}</p>}
+          {diags.map((d, i) => (
+            <EditorDiagnostico key={i} d={d} onChange={(n) => setDiags(diags.map((x, j) => (j === i ? n : x)))}
+              onRemover={diags.length > 1 ? () => setDiags(diags.filter((_, j) => j !== i)) : undefined} />
+          ))}
+          <button type="button" className="btn sec peq" onClick={() => setDiags([...diags, diagVazio()])}>+ Outro CID</button>
+        </fieldset>
+
+        <Campo rotulo="Anamnese" obrigatorio erro={erros.anamnese}
+          ajuda="Histórico relevante: desenvolvimento, saúde, rotina familiar, medicações, preferências, sinais de alerta e objetivos do acompanhamento.">
+          {(p) => <textarea {...p} className="amplo" value={f.anamnese} onChange={(e) => setF({ ...f, anamnese: e.target.value })} />}
+        </Campo>
+      </div>
+
+      <div className="cartao">
+        <h2>Quando frequenta o centro</h2>
+        <p className="mudo pequeno">Define em quais listas (turno e dia) o assistido aparece na tela inicial.</p>
+        <fieldset>
+          <legend>Turno</legend>
           <div className="opcoes">
-            {DIAS.slice(1).map((d, i) => (
+            {[['manha', 'Manhã'], ['tarde', 'Tarde'], ['ambos', 'Manhã e tarde']].map(([v, r]) => (
+              <label key={v} className="chip"><input type="radio" name="turno" checked={f.turno_habitual === v} onChange={() => setF({ ...f, turno_habitual: v })} />{r}</label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Dias</legend>
+          <div className="opcoes">
+            {DIAS.slice(1).map((d, i) => (diasCentro.includes(i + 1) || f.dias_atendimento.includes(i + 1)) && (
               <label key={d} className="chip">
                 <input type="checkbox" checked={f.dias_atendimento.includes(i + 1)}
                   onChange={(e) => setF({ ...f, dias_atendimento: e.target.checked ? [...f.dias_atendimento, i + 1].sort() : f.dias_atendimento.filter((x) => x !== i + 1) })} />{d}
@@ -163,22 +209,15 @@ export function AssistidoForm() {
         </fieldset>
       </div>
 
-      <div className="cartao">
-        <h2>Diagnósticos e CID</h2>
-        <p className="mudo pequeno">Informe apenas o que consta no prontuário. Um código informado não é tratado como diagnóstico confirmado sem a devida documentação.</p>
-        {diags.map((d, i) => (
-          <EditorDiagnostico key={i} d={d} onChange={(n) => setDiags(diags.map((x, j) => (j === i ? n : x)))} onRemover={() => setDiags(diags.filter((_, j) => j !== i))} />
-        ))}
-        <button type="button" className="btn sec" onClick={() => setDiags([...diags, { descricao: '', cid_codigo: null, situacao: 'pendente_documentacao', fonte_documental: null }])}>+ Adicionar diagnóstico</button>
-      </div>
-
       {pode('assistidos.observacoes_restritas') && (
-        <div className="cartao">
-          <h2>Observações relevantes para o atendimento <span className="tag vermelho">Acesso restrito</span></h2>
-          <Campo rotulo="Observações restritas" ajuda="Armazenadas cifradas; visíveis somente a perfis autorizados. Cada acesso é registrado.">
-            {(p) => <textarea {...p} value={f.observacoes_restritas} onChange={(e) => setF({ ...f, observacoes_restritas: e.target.value })} />}
-          </Campo>
-        </div>
+        <details className="secao">
+          <summary>Observações restritas (opcional) <span className="tag vermelho">Acesso restrito</span></summary>
+          <div className="conteudo">
+            <Campo rotulo="Observações restritas" ajuda="Armazenadas cifradas; visíveis somente a perfis autorizados. Cada acesso é registrado.">
+              {(p) => <textarea {...p} value={f.observacoes_restritas} onChange={(e) => setF({ ...f, observacoes_restritas: e.target.value })} />}
+            </Campo>
+          </div>
+        </details>
       )}
       <div className="barra-acoes">
         <button className="btn grande" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar cadastro'}</button>
@@ -188,33 +227,38 @@ export function AssistidoForm() {
   );
 }
 
-function EditorDiagnostico({ d, onChange, onRemover }: { d: Diag; onChange: (d: Diag) => void; onRemover: () => void }) {
+function diagVazio(): Diag { return { descricao: '', cid_codigo: null, situacao: 'pendente_documentacao', fonte_documental: null }; }
+
+function EditorDiagnostico({ d, onChange, onRemover }: { d: Diag; onChange: (d: Diag) => void; onRemover?: () => void }) {
   const { pode } = useAuth();
   const toast = useToast();
   const [busca, setBusca] = useState(d.cid_codigo ?? '');
   const [res, setRes] = useState<any[]>([]);
-  const [manual, setManual] = useState(false);
+  const [pesquisado, setPesquisado] = useState('');   // termo cuja busca já terminou
+  const [detalhes, setDetalhes] = useState(false);
+  useEffect(() => { if (d.cid_codigo && busca !== d.cid_codigo) setBusca(d.cid_codigo); }, [d.cid_codigo]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (busca.length < 2 || busca === d.cid_codigo) { setRes([]); return; }
-    const t = setTimeout(() => api.get(`/cid?busca=${encodeURIComponent(busca)}`).then(setRes).catch(() => setRes([])), 250);
+    const t = setTimeout(() => api.get(`/cid?busca=${encodeURIComponent(busca)}`).then(setRes).catch(() => setRes([]))
+      .finally(() => setPesquisado(busca)), 250);
     return () => clearTimeout(t);
   }, [busca, d.cid_codigo]);
+  const codigoDigitado = busca.trim().toUpperCase();
+  const pareceCid = /^[A-Z]\d{2}(\.\d{1,2})?$/.test(codigoDigitado);
   const inserirManual = async () => {
-    const descricao = d.descricao.trim();
     try {
-      await api.post('/cid', { codigo: busca.toUpperCase(), descricao: descricao || busca.toUpperCase() });
-      onChange({ ...d, cid_codigo: busca.toUpperCase() });
-      toast('ok', 'Código inserido no catálogo.');
-      setManual(false);
+      await api.post('/cid', { codigo: codigoDigitado, descricao: d.descricao.trim() || codigoDigitado });
+      onChange({ ...d, cid_codigo: codigoDigitado, cid_descricao: d.descricao.trim() || undefined });
+      toast('ok', `CID ${codigoDigitado} incluído no catálogo.`);
     } catch (e: any) { toast('erro', e.message); }
   };
   return (
     <div className="indicador">
       <div className="linha-campos">
-        <Campo rotulo="Diagnóstico (conforme prontuário)" obrigatorio>{(p) => <input {...p} type="text" value={d.descricao} onChange={(e) => onChange({ ...d, descricao: e.target.value })} />}</Campo>
-        <Campo rotulo="Código CID" ajuda={d.cid_codigo ? `Selecionado: ${d.cid_codigo}${d.cid_descricao ? ` — ${d.cid_descricao}` : ''}` : 'Pesquise por código ou descrição'}>
+        <Campo rotulo="Código CID" obrigatorio ajuda={d.cid_codigo ? `✓ ${d.cid_codigo}${d.cid_descricao ? ` — ${d.cid_descricao}` : ''}` : 'Digite o código (ex.: F84.0) ou parte da descrição'}>
           {(p) => <input {...p} type="search" value={busca} onChange={(e) => { setBusca(e.target.value); if (d.cid_codigo) onChange({ ...d, cid_codigo: null }); }} />}
         </Campo>
+        <Campo rotulo="Descrição">{(p) => <input {...p} type="text" placeholder="Preenchida ao escolher o CID" value={d.descricao} onChange={(e) => onChange({ ...d, descricao: e.target.value })} />}</Campo>
       </div>
       {res.length > 0 && (
         <ul className="lista-simples" style={{ marginBottom: 8 }}>
@@ -224,22 +268,25 @@ function EditorDiagnostico({ d, onChange, onRemover }: { d: Diag; onChange: (d: 
           ))}
         </ul>
       )}
-      {busca.length >= 3 && !res.length && !d.cid_codigo && (
-        pode('cid.inserir_manual')
-          ? (manual
-            ? <div className="acoes"><span className="pequeno">Inserir “{busca.toUpperCase()}” no catálogo com a descrição acima?</span><button type="button" className="btn peq" onClick={inserirManual}>Inserir</button><button type="button" className="btn sec peq" onClick={() => setManual(false)}>Cancelar</button></div>
-            : <button type="button" className="btn-link" onClick={() => setManual(true)}>Código não encontrado — inserir manualmente</button>)
-          : <p className="mudo pequeno">Código não encontrado no catálogo. A inserção manual requer autorização.</p>
+      {busca.length >= 3 && pesquisado === busca && !res.length && !d.cid_codigo && (
+        pode('cid.inserir_manual') && pareceCid
+          ? <div className="acoes"><span className="pequeno">“{codigoDigitado}” não está no catálogo.</span><button type="button" className="btn peq" onClick={inserirManual}>Usar e incluir no catálogo</button></div>
+          : <p className="mudo pequeno">Código não encontrado no catálogo.{pode('cid.inserir_manual') ? ' Digite no formato A00 ou A00.0 para incluí-lo.' : ' A inclusão requer autorização.'}</p>
       )}
-      <div className="linha-campos">
-        <Campo rotulo="Situação documental">{(p) => (
-          <select {...p} value={d.situacao} onChange={(e) => onChange({ ...d, situacao: e.target.value })}>
-            <option value="documentado_prontuario">Documentado no prontuário</option>
-            <option value="pendente_documentacao">Informado — pendente de documentação</option>
-          </select>)}</Campo>
-        <Campo rotulo="Fonte documental (opcional)">{(p) => <input {...p} type="text" placeholder="Ex.: laudo de 03/2025" value={d.fonte_documental ?? ''} onChange={(e) => onChange({ ...d, fonte_documental: e.target.value || null })} />}</Campo>
+      <div className="acoes">
+        <button type="button" className="btn-link pequeno" aria-expanded={detalhes} onClick={() => setDetalhes(!detalhes)}>{detalhes ? 'Ocultar documentação' : 'Documentação (opcional)'}</button>
+        {onRemover && <button type="button" className="btn-link pequeno" style={{ color: 'var(--vermelho-700)' }} onClick={onRemover}>Remover</button>}
       </div>
-      <button type="button" className="btn perigo peq" onClick={onRemover}>Remover diagnóstico</button>
+      {detalhes && (
+        <div className="linha-campos">
+          <Campo rotulo="Situação documental">{(p) => (
+            <select {...p} value={d.situacao} onChange={(e) => onChange({ ...d, situacao: e.target.value })}>
+              <option value="documentado_prontuario">Documentado no prontuário</option>
+              <option value="pendente_documentacao">Informado — pendente de documentação</option>
+            </select>)}</Campo>
+          <Campo rotulo="Fonte documental">{(p) => <input {...p} type="text" placeholder="Ex.: laudo de 03/2025" value={d.fonte_documental ?? ''} onChange={(e) => onChange({ ...d, fonte_documental: e.target.value || null })} />}</Campo>
+        </div>
+      )}
     </div>
   );
 }
@@ -305,7 +352,7 @@ function DadosCadastrais({ a }: { a: any }) {
         <h2>Cadastro</h2>
         <dl className="grade" style={{ gridTemplateColumns: 'max-content 1fr', gap: '6px 16px', margin: 0 }}>
           <dt className="negrito">Código</dt><dd style={{ margin: 0 }}>{a.codigo}</dd>
-          <dt className="negrito">Nascimento</dt><dd style={{ margin: 0 }}>{data(a.data_nascimento)} ({a.idade} anos)</dd>
+          <dt className="negrito">Idade</dt><dd style={{ margin: 0 }}>{a.idade != null ? `${a.idade} anos` : 'Não informada'}{a.data_nascimento ? ` (nasc. ${data(a.data_nascimento)})` : ''}</dd>
           <dt className="negrito">Turno habitual</dt><dd style={{ margin: 0 }}>{TURNOS[a.turno_habitual]}</dd>
           <dt className="negrito">Dias</dt><dd style={{ margin: 0 }}>{a.dias_atendimento.map((d: number) => DIAS[d]).join(', ') || 'Não definidos'}</dd>
           <dt className="negrito">Cadastrado em</dt><dd style={{ margin: 0 }}>{dataHora(a.criado_em)} por {a.criado_por_nome}</dd>
@@ -314,7 +361,11 @@ function DadosCadastrais({ a }: { a: any }) {
         </dl>
       </div>
       <div className="cartao">
-        <h2>Diagnósticos registrados</h2>
+        <h2>Anamnese</h2>
+        {a.anamnese ? <p className="pre">{a.anamnese}</p> : <p className="mudo">Não preenchida. Edite o cadastro para registrá-la.</p>}
+      </div>
+      <div className="cartao">
+        <h2>CID e diagnósticos</h2>
         {!a.diagnosticos.length ? <p className="mudo">Nenhum diagnóstico registrado.</p> : (
           <ul className="lista-simples">
             {a.diagnosticos.map((d: any) => (

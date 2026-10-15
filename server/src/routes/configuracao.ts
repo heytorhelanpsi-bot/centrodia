@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { exigir, tx } from '../lib/auth.js';
+import { exigir, tem, tx } from '../lib/auth.js';
 import { auditar } from '../lib/auditoria.js';
 import { HttpError } from '../lib/util.js';
 import { validar } from '../lib/validacao.js';
@@ -145,10 +145,23 @@ const indicadorSchema = z.object({
   ordem: z.number().int().min(0).max(1000).default(100),
 });
 
-indicadoresRouter.post('/', exigir('config.indicadores'), async (req, res) => {
-  const b = validar(indicadorSchema.extend({ escala: escalaSchema }), req.body);
+/** Escala 0–5 padrão, usada quando o comportamento é criado durante o registro. */
+function escalaPadrao(tipo: string): z.infer<typeof escalaSchema> {
+  const desc = tipo === 'monitoramento'
+    ? ['Não observado no período avaliado', 'Muito baixo', 'Baixo', 'Moderado', 'Elevado', 'Muito elevado']
+    : ['Não observado ou ausência na situação registrada', 'Muito reduzido', 'Baixo', 'Moderado', 'Bom', 'Muito bom'];
+  return { minimo: 0, maximo: 5, direcao: tipo === 'monitoramento' ? 'menor_melhor' : tipo === 'outro' ? 'neutra' : 'maior_melhor',
+    niveis: desc.map((descricao, valor) => ({ valor, descricao })) };
+}
+
+indicadoresRouter.post('/', async (req, res) => {
+  if (!tem(req, 'config.indicadores') && !tem(req, 'indicadores.criar')) throw new HttpError(403, 'Você não tem permissão para esta operação.');
+  const p = validar(indicadorSchema.extend({ escala: escalaSchema.optional() }), req.body);
+  const b = { ...p, escala: p.escala ?? escalaPadrao(p.tipo) };
   const chave = `custom_${Date.now().toString(36)}`;
   const r = await tx(req, async (db) => {
+    const existe = await db.query('SELECT 1 FROM indicadores WHERE lower(nome) = lower($1)', [b.nome]);
+    if (existe.rowCount) throw new HttpError(409, `Já existe um comportamento chamado "${b.nome}".`);
     const r = await db.query(
       `INSERT INTO indicadores (chave, nome, descricao, tipo, observacao_obrigatoria, ativo, ordem, criado_por)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,

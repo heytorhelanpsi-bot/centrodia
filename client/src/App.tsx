@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth';
 import { PERFIS } from './formato';
 import { Carregando } from './componentes/ui';
 import { Login, RedefinirSenha, TrocarSenha } from './paginas/Acesso';
 import { Dashboard } from './paginas/Dashboard';
+import { Inicio, ListaDoDia, Mais, RegistroRapido } from './paginas/Rotina';
 import { AssistidoDetalhe, AssistidoForm, Assistidos } from './paginas/Assistidos';
 import { EvolucaoDetalhe, EvolucaoForm } from './paginas/Evolucao';
 import { ColetivaDetalhe, ColetivaForm, Coletivas } from './paginas/Coletivas';
@@ -15,15 +16,11 @@ import { IndicadoresPagina } from './paginas/Indicadores';
 import { Configuracoes } from './paginas/Configuracoes';
 
 const MENU = [
-  { to: '/', rotulo: 'Dashboard', ico: '◧', fim: true },
+  { to: '/', rotulo: 'Início', ico: '⌂', fim: true },
   { to: '/assistidos', rotulo: 'Assistidos', ico: '👤' },
-  { to: '/evolucoes/nova', rotulo: 'Registrar evolução', ico: '✎', perm: 'evolucoes.registrar' },
-  { to: '/grupos', rotulo: 'Atendimentos em grupo', ico: '👥' },
-  { to: '/historico', rotulo: 'Histórico de evoluções', ico: '🕘' },
+  { to: '/historico', rotulo: 'Histórico', ico: '🕘' },
   { to: '/relatorios', rotulo: 'Relatórios', ico: '📄', permAlguma: ['relatorios.elaborar', 'relatorios.ver_aprovados'] },
-  { to: '/atividades', rotulo: 'Atividades', ico: '🎵' },
-  { to: '/indicadores', rotulo: 'Indicadores comportamentais', ico: '📈' },
-  { to: '/configuracoes', rotulo: 'Usuários e configurações', ico: '⚙' },
+  { to: '/mais', rotulo: 'Mais', ico: '☰' },
 ];
 
 export function App() {
@@ -38,37 +35,34 @@ export function App() {
 
 function Layout() {
   const { usuario, pode, sair } = useAuth();
-  const [aberto, setAberto] = useState(false);
   const loc = useLocation();
   const mainRef = useRef<HTMLElement>(null);
-  useEffect(() => { setAberto(false); mainRef.current?.focus(); window.scrollTo(0, 0); }, [loc.pathname]);
-  const itens = MENU.filter((m) => (!m.perm || pode(m.perm)) && (!m.permAlguma || m.permAlguma.some(pode)));
+  useEffect(() => { mainRef.current?.focus(); window.scrollTo(0, 0); }, [loc.pathname]);
+  const itens = MENU.filter((m) => !m.permAlguma || m.permAlguma.some(pode));
+  const ativo = (to: string, fim?: boolean) => (fim ? loc.pathname === to || loc.pathname.startsWith('/rotina') || loc.pathname.startsWith('/registro') : loc.pathname.startsWith(to));
   return (
     <div className="app">
       <a href="#conteudo" className="pular-link">Pular para o conteúdo</a>
-      <div className="topo-movel">
-        <button aria-label="Abrir menu" aria-expanded={aberto} onClick={() => setAberto(true)}>☰</button>
-        <strong style={{ display: 'flex', alignItems: 'center', gap: 8 }}><img src="/icone.svg" alt="" width={28} height={28} />PsiDia</strong>
-        <span style={{ width: 44 }} />
-      </div>
-      <nav className={`lateral ${aberto ? 'aberta' : ''}`} aria-label="Menu principal" onKeyDown={(e) => e.key === 'Escape' && setAberto(false)}>
-        <div className="marca"><img className="marca-icone" src="/icone.svg" alt="" aria-hidden /><span>PsiDia<small>Gestão e evolução dos assistidos</small></span></div>
-        <ul className="menu">
+      <header className="topo">
+        <NavLink to="/" className="marca" aria-label="PsiDia — início"><img className="marca-icone" src="/icone.svg" alt="" aria-hidden />PsiDia</NavLink>
+        <nav className="menu-topo" aria-label="Menu principal">
           {itens.map((m) => (
-            <li key={m.to}><NavLink to={m.to} end={m.fim} className={({ isActive }) => (isActive ? 'ativo' : '')}>
-              <span className="ico" aria-hidden>{m.ico}</span>{m.rotulo}</NavLink></li>
+            <NavLink key={m.to} to={m.to} className={ativo(m.to, m.fim) ? 'ativo' : ''} aria-current={ativo(m.to, m.fim) ? 'page' : undefined}>{m.rotulo}</NavLink>
           ))}
-        </ul>
-        <div className="lateral-rodape">
-          <div><strong>{usuario!.nome}</strong></div>
-          <div style={{ color: '#a9c3dd' }}>{PERFIS[usuario!.perfil]}</div>
-          <NavLink to="/minha-conta" style={{ color: '#dce8f5' }}>Minha conta</NavLink>
+        </nav>
+        <div className="topo-usuario">
+          <span title={PERFIS[usuario!.perfil]}>{usuario!.nome.split(' ')[0]}</span>
           <button className="btn sec peq" onClick={sair}>Sair</button>
         </div>
-      </nav>
+      </header>
       <main id="conteudo" className="principal" tabIndex={-1} ref={mainRef} style={{ outline: 'none' }}>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Inicio />} />
+          <Route path="/rotina/:turno/:dia" element={<ListaDoDia />} />
+          <Route path="/rotina/:turno/:dia/:assistidoId" element={<RegistroRapido />} />
+          <Route path="/registro/:evolucaoId" element={<RegistroRapido />} />
+          <Route path="/painel" element={<Dashboard />} />
+          <Route path="/mais" element={<Mais />} />
           <Route path="/assistidos" element={<Assistidos />} />
           <Route path="/assistidos/novo" element={<AssistidoForm />} />
           <Route path="/assistidos/:id" element={<AssistidoDetalhe />} />
@@ -93,6 +87,13 @@ function Layout() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
+      <nav className="menu-inferior" aria-label="Menu principal (atalhos)">
+        {itens.map((m) => (
+          <NavLink key={m.to} to={m.to} className={ativo(m.to, m.fim) ? 'ativo' : ''} aria-current={ativo(m.to, m.fim) ? 'page' : undefined}>
+            <span className="ico" aria-hidden>{m.ico}</span>{m.rotulo}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

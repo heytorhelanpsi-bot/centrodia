@@ -1,5 +1,5 @@
 import type { Db } from '../db/pool.js';
-import { calcularIdade } from '../lib/util.js';
+import { idadeDe } from '../lib/util.js';
 
 /**
  * Salvaguardas antes de enviar dados ao serviço externo de IA:
@@ -171,7 +171,7 @@ function mediana(v: number[]) {
 }
 
 export async function contextoAssistido(db: Db, assistidoId: string, incluirDiagnosticos: boolean) {
-  const a = (await db.query('SELECT id, codigo, nome_completo, data_nascimento FROM assistidos WHERE id = $1', [assistidoId])).rows[0];
+  const a = (await db.query('SELECT id, codigo, nome_completo, data_nascimento, idade_informada, idade_informada_em, anamnese FROM assistidos WHERE id = $1', [assistidoId])).rows[0];
   if (!a) return null;
   let diagnosticos: string[] = [];
   if (incluirDiagnosticos) {
@@ -179,5 +179,5 @@ export async function contextoAssistido(db: Db, assistidoId: string, incluirDiag
       `SELECT descricao, cid_codigo, situacao FROM assistido_diagnosticos WHERE assistido_id = $1`, [assistidoId])).rows
       .map((d) => `${d.descricao}${d.cid_codigo ? ` (CID ${d.cid_codigo})` : ''} — ${d.situacao === 'documentado_prontuario' ? 'documentado no prontuário' : 'informado, pendente de documentação'}`);
   }
-  return { a, idade: calcularIdade(a.data_nascimento), diagnosticos };
+  return { a, idade: idadeDe(a), diagnosticos };
 }
