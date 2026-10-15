@@ -13,7 +13,7 @@ com IA, com revisão humana obrigatória.
 
 | Módulo | O que faz |
 |---|---|
-| **Início (registro do dia)** | Dois cartões, **Manhã** e **Tarde** → dias de funcionamento (padrão: segunda, quarta e sexta; configurável) → lista dos assistidos daquele turno e dia, com a situação de cada um (registrar, em andamento, registrado) → **registro rápido**: atividades realizadas, marcação de comportamentos de 0 a 5 (atenção, foco, engajamento, agressividade…, com “–” para não avaliado e opção de **adicionar novos comportamentos** na hora) e observações. Tudo alimenta os relatórios. |
+| **Início (registro do dia)** | Dois cartões, **Manhã** e **Tarde** → dias de funcionamento (padrão: segunda, quarta e sexta; configurável) → lista dos assistidos daquele turno e dia, com a situação de cada um (registrar, em andamento, registrado) → **registro rápido**: atividades realizadas, marcação de comportamentos de 0 a 5 (atenção, foco, engajamento, agressividade…, com “–” para não avaliado e opção de **adicionar novos comportamentos** na hora) e observações. Botão **Faltou** com um toque (ou dentro do registro, com motivo opcional); as faltas aparecem nos relatórios. Tocando num registro já salvo é possível **editar** (data, turno ou dados, informando o que estava errado) ou **excluir** um lançamento feito por engano (com motivo; o registro sai das listas e relatórios e fica guardado na auditoria). Tudo alimenta os relatórios. |
 | **Painel do dia** | (Em Mais) números do dia, pendências, individuais × grupo e registros recentes. |
 | **Assistidos** | Cadastro simples com os campos obrigatórios **nome, idade, CID e anamnese** (a data de nascimento é opcional), turno e dias de frequência, código interno automático (PD-00001) e observações restritas **cifradas** (opcional). Busca, arquivamento sem perda de histórico e aviso de duplicidade. |
 | **Registrar evolução** | Formulário em seções: identificação, checklist de atividades (com “Adicionar nova atividade”), indicadores 0–5 com “Não avaliado” separado do 0, descrição de cada nível e observação por indicador, evolução e campos complementares. Botões: salvar rascunho, salvar, salvar e registrar a próxima, salvar e gerar análise com IA, cancelar. |
@@ -81,7 +81,7 @@ Veja [docs/PRODUCAO.md](docs/PRODUCAO.md).
 ## Testes
 
 ```bash
-npm test             # 49 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
+npm test             # 50 testes (unidade + fluxos completos) contra um banco PostgreSQL de teste
 npm run typecheck
 ```
 

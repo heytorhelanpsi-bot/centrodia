@@ -91,6 +91,11 @@ export function compilarRelatorio(d: DadosRegistros, o: Opcoes): string {
   const turnos = { manha: 0, tarde: 0 };
   for (const e of d.evolucoes) turnos[e.turno as 'manha' | 'tarde']++;
   L.push(`Turnos: ${turnos.manha} pela manhã e ${turnos.tarde} à tarde.`);
+  const faltas = d.evolucoes.filter((e) => e.tipo === 'individual' && e.participacao === 'nao_realizada');
+  if (faltas.length) {
+    L.push(`Faltas registradas: ${faltas.length} (${faltas.map((e) => fmt(e.data as string)).join(', ')}). ` +
+      `Presenças registradas: ${total - faltas.length}.`);
+  }
   const porAtiv = new Map<string, Record<string, number>>();
   for (const a of d.atividades) {
     const r = porAtiv.get(a.nome) ?? { total: 0, integral: 0, parcial: 0, nao_realizada: 0, nao_informado: 0 };
@@ -280,7 +285,8 @@ export function compilarRelatorio(d: DadosRegistros, o: Opcoes): string {
     L.push('', `### ${fmt(e.data)} — ${e.turno === 'manha' ? 'manhã' : 'tarde'} — ${e.tipo === 'individual' ? 'atendimento individual' : `grupo: ${col?.nome_atividade ?? ''}`}`);
     L.push(`- Profissional: ${o.profissionais.get(e.profissional_id) ?? '—'}`);
     if (ats.length) L.push(`- Atividades: ${ats.join('; ')}`);
-    if (e.participacao) L.push(`- Participação: ${PARTICIPACAO[e.participacao]}`);
+    if (e.tipo === 'individual' && e.participacao === 'nao_realizada') L.push('- Falta: o assistido não compareceu');
+    else if (e.participacao) L.push(`- Participação: ${PARTICIPACAO[e.participacao]}`);
     if (e.nivel_apoio) L.push(`- Nível de apoio: ${APOIO[e.nivel_apoio]}`);
     if (avs.length) L.push(`- Indicadores: ${avs.join('; ')}`);
     if (e.texto_evolucao) L.push(`- Evolução: “${e.texto_evolucao}”`);

@@ -65,6 +65,8 @@ rotinaRouter.get('/', exigir('assistidos.ver'), async (req, res) => {
                          WHERE d.assistido_id = a.id AND d.cid_codigo IS NOT NULL), '{}') AS cids,
               (SELECT e.id FROM evolucoes e WHERE e.assistido_id = a.id AND e.data = $1 AND e.turno::text = $3 AND e.status = 'finalizada'
                 ORDER BY e.finalizada_em DESC LIMIT 1) AS evolucao_id,
+              (SELECT e.participacao = 'nao_realizada' FROM evolucoes e WHERE e.assistido_id = a.id AND e.data = $1 AND e.turno::text = $3
+                  AND e.status = 'finalizada' ORDER BY e.finalizada_em DESC LIMIT 1) AS faltou,
               (SELECT e.id FROM evolucoes e WHERE e.assistido_id = a.id AND e.data = $1 AND e.turno::text = $3 AND e.status = 'rascunho'
                   AND e.profissional_id = $4 ORDER BY e.atualizado_em DESC LIMIT 1) AS rascunho_id
          FROM assistidos a JOIN assistido_agenda g ON g.assistido_id = a.id AND g.dia_semana = $2
@@ -76,7 +78,7 @@ rotinaRouter.get('/', exigir('assistidos.ver'), async (req, res) => {
     turno: q.turno, dia: q.dia, data,
     assistidos: r.map((a) => ({
       id: a.id, codigo: a.codigo, nome_completo: a.nome_completo, idade: idadeDe(a), cids: a.cids,
-      situacao: a.evolucao_id ? 'registrado' : a.rascunho_id ? 'rascunho' : 'pendente',
+      situacao: a.evolucao_id ? (a.faltou ? 'falta' : 'registrado') : a.rascunho_id ? 'rascunho' : 'pendente',
       evolucao_id: a.evolucao_id, rascunho_id: a.rascunho_id,
     })),
   });

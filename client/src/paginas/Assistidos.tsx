@@ -472,7 +472,7 @@ function AnalisesAssistido({ a }: { a: any }) {
 export function EtiquetaStatus({ s }: { s: string }) {
   const m: Record<string, [string, string]> = {
     minuta: ['Minuta — revisão pendente', 'ambar'], revisada: ['Revisada', 'verde'], aprovado: ['Aprovado', 'verde'],
-    descartada: ['Descartada', ''], arquivado: ['Arquivado', ''], rascunho: ['Rascunho', 'ambar'], finalizada: ['Finalizada', 'verde'],
+    descartada: ['Descartada', ''], arquivado: ['Arquivado', ''], rascunho: ['Rascunho', 'ambar'], finalizada: ['Finalizada', 'verde'], excluida: ['Excluído', 'vermelho'],
   };
   const [t, c] = m[s] ?? [s, ''];
   return <span className={`tag ${c}`}>{t}</span>;

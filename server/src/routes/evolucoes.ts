@@ -36,6 +36,7 @@ export function montarFiltros(q: z.infer<typeof filtrosHistoricoSchema>) {
   if (q.atividade_id) add('EXISTS (SELECT 1 FROM evolucao_atividades x WHERE x.evolucao_id = e.id AND x.atividade_id = ?)', q.atividade_id);
   if (q.indicador_id) add('EXISTS (SELECT 1 FROM avaliacoes_indicadores x WHERE x.evolucao_id = e.id AND x.indicador_id = ? AND x.valor IS NOT NULL)', q.indicador_id);
   if (q.status !== 'todos') add('e.status = ?', q.status);
+  else cond.push(`e.status <> 'excluida'`);   // registros excluídos só aparecem na auditoria
   return { where: cond.length ? `WHERE ${cond.join(' AND ')}` : '', params };
 }
 
@@ -93,6 +94,7 @@ evolucoesRouter.put('/:id', exigir('evolucoes.registrar'), async (req, res) => {
     const atual = await db.query('SELECT status, assistido_id, profissional_id, data, atividade_coletiva_id FROM evolucoes WHERE id = $1', [id]);
     if (!atual.rowCount) throw new HttpError(404, 'Registro não encontrado.');
     const e = atual.rows[0];
+    if (e.status === 'excluida') throw new HttpError(409, 'Este registro foi excluído.');
     if (e.status === 'finalizada') throw new HttpError(409, 'Registro finalizado. Use "Registrar correção" para alterá-lo.');
     if (e.profissional_id !== req.usuario!.id) throw new HttpError(403, 'Apenas o autor pode editar o rascunho.');
     if (e.atividade_coletiva_id) throw new HttpError(409, 'Este registro pertence a uma atividade em grupo. Edite-o pelo módulo de grupos.');
@@ -116,6 +118,31 @@ evolucoesRouter.delete('/:id', exigir('evolucoes.registrar'), async (req, res) =
     await db.query('DELETE FROM evolucao_atividades WHERE evolucao_id = $1', [id]);
     await db.query('DELETE FROM evolucoes WHERE id = $1', [id]);
     await auditar(db, req, 'rascunho_descartado', 'evolucao', id, { assistido_id: e.rows[0].assistido_id });
+  });
+  res.json({ ok: true });
+});
+
+/**
+ * Exclusão de registro finalizado lançado por engano (assistido, data ou dados errados).
+ * O registro não é apagado: fica marcado como excluído, com motivo, e some das listas e relatórios.
+ */
+evolucoesRouter.post('/:id/excluir', exigir('evolucoes.corrigir'), async (req, res) => {
+  const id = validar(z.string().uuid(), req.params.id);
+  const { motivo } = validar(z.object({ motivo: z.string().trim().min(5, 'Descreva o motivo da exclusão (mín. 5 caracteres)') }), req.body);
+  await tx(req, async (db) => {
+    const antes = await retrato(db, id);
+    if (!antes) throw new HttpError(404, 'Registro não encontrado.');
+    if (antes.status === 'excluida') throw new HttpError(409, 'Este registro já foi excluído.');
+    if (antes.status !== 'finalizada') throw new HttpError(409, 'Rascunhos são descartados diretamente.');
+    if (antes.atividade_coletiva_id) throw new HttpError(409, 'Este registro pertence a uma atividade em grupo. Altere-o pelo módulo de grupos.');
+    await db.query(
+      `INSERT INTO evolucao_correcoes (evolucao_id, alterado_por, motivo, dados_anteriores, dados_novos) VALUES ($1,$2,$3,$4,$5)`,
+      [id, req.usuario!.id, `Exclusão: ${motivo}`, antes, { excluido: true }]);
+    const r = await db.query(
+      `UPDATE evolucoes SET status = 'excluida', excluida_em = now(), excluida_por = $2, motivo_exclusao = $3 WHERE id = $1`,
+      [id, req.usuario!.id, motivo]);
+    if (!r.rowCount) throw new HttpError(403, 'Sem permissão para excluir este registro.');
+    await auditar(db, req, 'evolucao_excluida', 'evolucao', id, { motivo, assistido_id: antes.assistido_id, data: antes.data });
   });
   res.json({ ok: true });
 });
